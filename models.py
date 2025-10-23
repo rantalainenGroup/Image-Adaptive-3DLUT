@@ -6,7 +6,10 @@ from torch.autograd import Variable
 import torch
 import numpy as np
 import math
-from trilinear_c._ext import trilinear
+import sys
+sys.path.append("/home/bojing/Image-Adaptive-3DLUT/trilinear_cpp")
+#from trilinear_c._ext import trilinear
+import trilinear
 
 def weights_init_normal_classifier(m):
     classname = m.__class__.__name__

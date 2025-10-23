@@ -6,6 +6,8 @@ from torch.autograd import Variable
 import torch
 import numpy as np
 import math
+import sys
+sys.path.append("/home/bojing/Image-Adaptive-3DLUT/trilinear_cpp")
 import trilinear
 
 def weights_init_normal_classifier(m):
@@ -113,6 +115,8 @@ class Classifier_unpaired(nn.Module):
             *discriminator_block(128, 128),
             #*discriminator_block(128, 128),
             nn.Conv2d(128, 3, 8, padding=0),
+            #nn.Flatten(),                      # -> [B,3]
+            #nn.Softmax(dim=1),                 # normalize to simplex
         )
 
     def forward(self, img_input):
