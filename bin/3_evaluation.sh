@@ -14,7 +14,7 @@ TASK='3_evaluation'
 log_file="/home/bojing/Image-Adaptive-3DLUT/logs/${TASK}_${current_time}.log"
 
 log() {
-    echo "$(date '+%Y-%m-%d %H:%M:%S') - $@"  | tee -a "$log_file"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') - $@"  >> "$log_file"
 }
 
 
@@ -25,15 +25,19 @@ set -e
 #GPUS="${2:-4}"
 # go to project root (parent of bin)
 cd "$(dirname "$0")/.."
-CONFIG="/home/bojing/Image-Adaptive-3DLUT/configs/exp_03.yaml"
-GPUS=4
-
-
+CONFIGS=(
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_03.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_04.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_05.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
+  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_07.yaml"
+)
+BATCH_SIZE=256
 # --- timing (simple) ---
-SECONDS=0
+for CONFIG in "${CONFIGS[@]}"; do
+  SECONDS=0
 
-python /home/bojing/Image-Adaptive-3DLUT/evaluation_new.py \
-  --config "$CONFIG" \
-  --gpus "$GPUS" | tee -a "$log_file"    
-
-echo "Time used: ${SECONDS}s"
+  python /home/bojing/Image-Adaptive-3DLUT/evaluation_new.py \
+    --config "$CONFIG" --batch_size "$BATCH_SIZE" >> "$log_file"  
+  log "Finished $CONFIG. Time used: ${SECONDS}s"
+done
