@@ -1,0 +1,64 @@
+# configs/unpaired/exp_unpaired.yaml
+
+# exp_01: FID based on jpg, weight not soft max, augmentaion
+# exp_02: FID based on png, augmentation
+#         weight softmax,
+#         (correct batch ghostin,LUT op per sample and does not allow batch op)
+# exp_03: FID based on png, no softmax, no augmentation
+#  
+# exp_04: batch_size = 64, ngpu = 4
+# exp_05: batch_size = 64, ngpu = 1
+# exp_06: batch_size = 32, ngpu = 4
+# exp_07: partial epoch, ngpu = 4
+
+
+# --- I/O ---
+output_dir: /mnt/ssd/bojing/Image-Adaptive-3DLUT/LUTs/unpaired
+run_name: exp_07    # or "auto" for timestamped
+
+
+# --- data ---
+input_color_space: sRGB      
+dataset_name: scanb_malmo
+train_csv: /mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_train.csv
+val_csv: /mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_train.csv
+# If you DON'T have paired GT for test, leave test_csv empty or omit it:
+test_csv: "/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test.csv"  # change
+test_domain: PHILIPS          # only used by your loader; keep if applicable
+
+# --- training ---
+epoch: 0
+n_epochs: 300         # CHANGE
+batch_size: 64                # paper uses 1 for unpaired; increase if stable
+steps_per_epoch: 150
+lr: 0.0002
+b1: 0.9
+b2: 0.999
+n_cpu: 8
+n_critic: 1
+checkpoint_interval: 10   # CHANGE
+data_augmentation: false
+
+# --- losses (paper-aligned) ---
+lambda_pixel: 1000.0          # content: MSE(fake, input)
+lambda_gp: 10.0               # WGAN-GP
+lambda_smooth: 0.0001         # TV + weights_norm
+lambda_monotonicity: 10.0
+
+# --- compute ---
+gpus: 4                       # set 1 for single-GPU; >1 enables DataParallel
+
+# --- eval policy ---
+eval_target: auto
+# eval_target = auto, compute PSNR only if ground-truth is actually available; otherwise skip it.”
+fid_every:  10         # CHANGE           # (optional) compute every N epochs
+val_b_corpus:
+export_dir:
+keep_fid_images: true
+
+
+#--- evaluation -----
+model_dir: /mnt/ssd/bojing/Image-Adaptive-3DLUT/LUTs/unpaired/exp_07/saved_models
+export_ext: PNG
+use_global_weight: true
+global_type: median # median/mean
