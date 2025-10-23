@@ -7,11 +7,11 @@ import time
 import datetime
 import sys
 from pathlib import Path
-
+import json
 import torchvision.transforms as transforms
 from torchvision.utils import save_image
 
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, RandomSampler
 from torchvision import datasets
 from torch.autograd import Variable
 import torch.autograd as autograd
@@ -24,6 +24,9 @@ import torch.nn.functional as F
 import torch
 from torchvision.transforms.functional import to_pil_image
 import shutil, os
+
+
+
 
 
 
@@ -47,14 +50,17 @@ parser.add_argument("--gpus", type=int, default=1, help="number of GPUs for Data
 parser.add_argument("--train_csv", type=str, default="", help="CSV for unpaired training (provides A_input and B_exptC)")
 parser.add_argument("--test_csv", type=str, default="", help="Optional paired test CSV for PSNR")
 parser.add_argument("--val_csv", type=str, default="", help="CSV with val/test rows for PHILIPS & XR (for FID/KID)")
-
+parser.add_argument("--data_augmentation", action="store_true", help="use data augmentation in data loader")
 parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from, 0 starts from scratch, >0 starts from saved checkpoints")
 parser.add_argument("--n_epochs", type=int, default=300, help="total number of epochs of training")
 parser.add_argument("--dataset_name", type=str, default="scanb_malmo", help="name of the dataset")
 
+
+
 # === NEW/CHANGED === expose input_color_space (your code uses it later)
 parser.add_argument("--input_color_space", type=str, default="sRGB", choices=["sRGB","XYZ"], help="input color space")
 parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
+parser.add_argument("--steps_per_epoch", type=int, default=150, help="steps per partial epoch")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.9, help="adam: decay of first order momentum of gradient")
 parser.add_argument("--b2", type=float, default=0.999, help="adam: decay of first order momentum of gradient")
@@ -74,6 +80,60 @@ parser.add_argument("--val_b_corpus", type=str, default="", help="Optional folde
 parser.add_argument("--export_dir", type=str, default="", help="Where to write exports; default <run_dir>/metrics")
 parser.add_argument("--keep_fid_images", action="store_true", help="Keep exported fake images (default: delete)")
 parser.add_argument("--export_ext", type=str, default="png", choices=["png","jpg","jpeg"], help="Output format for generated images (default: png)")
+
+"""
+seed = 123
+random.seed(seed); np.random.seed(seed)
+torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+g = torch.Generator(); g.manual_seed(seed)
+"""
+
+
+# ----------------------------
+#       Utility functions
+# ----------------------------
+def set_all_seeds(seed: int = 123):
+    random.seed(seed)
+    import numpy as np
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+def save_max_quality(t: torch.Tensor, out_stem: Path, fmt: str):
+    """
+    t: [C,H,W] in [0,1]; out_stem: path WITHOUT extension
+    fmt: 'png' or 'jpg'/'jpeg'
+    """
+    fmt = fmt.lower()
+    if fmt == "jpeg": fmt = "jpg"
+    #img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
+    img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0)
+    pil = to_pil_image(img).convert("RGB")
+    out_path = Path(out_stem).with_suffix("." + fmt)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if fmt == "jpg":
+        pil.save(out_path, format="JPEG", quality=100, subsampling=0, 
+                 optimize=True, progressive=True)
+    else:  # PNG is lossless; compress level only affects size/speed
+        pil.save(out_path, format="PNG", optimize=True, compress_level=0)
+
+# filename helpers (preserve original names safely)
+def _unique_path(dest_dir: Path, filename: str) -> Path:
+    out = dest_dir / filename
+    if not out.exists():
+        return out
+    stem, ext, i = out.stem, out.suffix, 1
+    while True:
+        cand = dest_dir / f"{stem}_{i}{ext}"
+        if not cand.exists():
+            return cand
+        i += 1
+
 
 
 # === NEW/CHANGED === config merge + run dir
@@ -121,16 +181,32 @@ class LUTGenerator(nn.Module):
         self.classifier = classifier
 
     def forward(self, img):
-        pred = self.classifier(img)           # [B,3]
-        if pred.dim() == 1:
+        B = img.size(0)
+        # logits or raw scores
+        pred = self.classifier(img)              # expect [B,3] or [B,3,1,1] 
+        #print (f'weight shape is', {pred.shape}) # debug
+
+        if pred.dim() > 2:
+            pred = pred.view(B, -1)[:, :3] # [B,3]
+        elif pred.dim() == 1:
             pred = pred.unsqueeze(0)
-        pred = pred.view(img.size(0), -1)
-        weights_norm = torch.mean(pred ** 2)
-        w0 = pred[:, 0].view(-1,1,1,1)
-        w1 = pred[:, 1].view(-1,1,1,1)
-        w2 = pred[:, 2].view(-1,1,1,1)
-        out = w0 * self.LUT0(img) + w1 * self.LUT1(img) + w2 * self.LUT2(img)
-        return out, weights_norm
+        pred = pred.view(B, -1)
+        # SAFE per-sample application to avoid ghosting
+        outs = []  # cannot do LUT0(img), because LUT is operates per sample, and allowing batch size>1
+        for b in range(B):
+            x  = img[b:b+1]
+            y0 = self.LUT0(x)
+            y1 = self.LUT1(x)
+            y2 = self.LUT2(x)
+            wb = pred[b]
+            #y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2).clamp(0,1)
+            y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2)
+            outs.append(y)
+        out = torch.cat(outs, dim=0)
+        weights_sum = (pred ** 2).sum()                           # <- sum, not mean
+        count = torch.tensor(pred.numel(), device=pred.device)    # <- count
+
+        return out, weights_sum, count
 
 # === NEW/CHANGED === build generator module and (optionally) wrap in DataParallel
 generator_core = LUTGenerator(LUT0, LUT1, LUT2, classifier).to(device)
@@ -159,73 +235,50 @@ else:
     disc_ref = discriminator.module if isinstance(discriminator, nn.DataParallel) else discriminator
     disc_ref.apply(weights_init_normal_classifier)
 
-# Optimizers
-optimizer_G = torch.optim.Adam(
-    itertools.chain(
-        (generator.parameters())  # works for DP or single
-    ),
-    lr=cfg.lr, betas=(cfg.b1, cfg.b2)
-)
+# Optimizers works for dp or single
+optimizer_G = torch.optim.Adam(itertools.chain((generator.parameters())),lr=cfg.lr, betas=(cfg.b1, cfg.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=cfg.lr, betas=(cfg.b1, cfg.b2))
 
 # === NEW/CHANGED === use cfg.* and keep your dataset wiring
-if cfg.input_color_space == 'sRGB':
-    dataloader = DataLoader(
-        ImageDataset_sRGB_unpaired_CSV(cfg.train_csv, mode="train"),
-        batch_size=cfg.batch_size,
-        shuffle=True,
-        num_workers=cfg.n_cpu,
-        pin_memory=True, persistent_workers=(cfg.n_cpu > 0), prefetch_factor=(4 if cfg.n_cpu > 0 else None),
-    )
+## === NEW/CHANGED === test/psnr loader (only if cfg.test_csv is set)
+psnr_dataloader = None
 
-    ## === NEW/CHANGED === test/psnr loader (only if cfg.test_csv is set)
-    
-    psnr_dataloader = None
-    """
-    if getattr(cfg, "val_csv", None):
-        psnr_dataloader = DataLoader(
-            ImageDataset_sRGB_unpaired_CSV(cfg.val_csv, mode="test", test_domain=cfg.test_domain),
-            batch_size=1,
-            shuffle=False,
-            num_workers=1,
-            pin_memory=(device.type == "cuda"),
-        )
-    """
-else:
-    dataloader = DataLoader(
-        ImageDataset_XYZ_unpaired("../data/%s" % cfg.dataset_name, mode="train"),
-        batch_size=cfg.batch_size,
-        shuffle=True,
-        num_workers=cfg.n_cpu,
-    )
-
+"""
+if getattr(cfg, "val_csv", None):
     psnr_dataloader = DataLoader(
-        ImageDataset_XYZ_unpaired("../data/%s" % cfg.dataset_name,  mode="test"),
+        ImageDataset_sRGB_unpaired_CSV(cfg.val_csv, mode="test", test_domain=cfg.test_domain),
         batch_size=1,
         shuffle=False,
         num_workers=1,
+        pin_memory=(device.type == "cuda"),
     )
+"""
 
-# ========= NEW: safely image  with max quality
+if cfg.input_color_space == 'sRGB':
+    ds_train = ImageDataset_sRGB_unpaired_CSV(cfg.train_csv, mode="train", data_augmentation=cfg.data_augmentation)
 
-def save_max_quality(t: torch.Tensor, out_stem: Path, fmt: str):
-    """
-    t: [C,H,W] in [0,1]; out_stem: path WITHOUT extension
-    fmt: 'png' or 'jpg'/'jpeg'
-    """
-    fmt = fmt.lower()
-    if fmt == "jpeg": fmt = "jpg"
+    if getattr(cfg, "steps_per_epoch", 0) > 0:
+        print('=========== Using partial epoch training ===========')
+        sampler = RandomSampler(ds_train, replacement=True, num_samples=cfg.steps_per_epoch * cfg.batch_size)
+        dataloader = DataLoader(
+                ds_train, batch_size=cfg.batch_size, sampler=sampler,
+                num_workers=cfg.n_cpu, pin_memory=True, persistent_workers=(cfg.n_cpu > 0),
+                prefetch_factor=(4 if cfg.n_cpu > 0 else None),
+            )
+        partial_mode = "partial_epoch"
+    else:
+        print('=========== Using full epoch training ===========')
+        dataloader = DataLoader(
+            ds_train,
+            batch_size=cfg.batch_size,
+            shuffle=True,
+            num_workers=cfg.n_cpu,
+            pin_memory=True, persistent_workers=(cfg.n_cpu > 0), prefetch_factor=(4 if cfg.n_cpu > 0 else None),
+        )
+        partial_mode = "full_epoch"
+else: 
+    print("Only sRGB input is supported in this training code.")   
 
-    img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
-    pil = to_pil_image(img).convert("RGB")
-
-    out_path = Path(out_stem).with_suffix("." + fmt)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    if fmt == "jpg":
-        pil.save(out_path, format="JPEG", quality=100, subsampling=0, optimize=True, progressive=True)
-    else:  # PNG is lossless; compress level only affects size/speed
-        pil.save(out_path, format="PNG", optimize=True, compress_level=0)
 
 
 # ========= NEW: validation loaders for FID/KID (from SAME CSV) =========
@@ -243,7 +296,6 @@ if getattr(cfg, "val_csv", ""):
     )
 
 
-
 # --- PSNR helper (skips if no psnr_loader/no paired data) ---
 def calculate_psnr():
     if psnr_dataloader is None:
@@ -255,7 +307,9 @@ def calculate_psnr():
     for i, batch in enumerate(psnr_dataloader):
         real_A = Variable(batch["A_input"].type(Tensor))
         real_B = Variable(batch["A_exptC"].type(Tensor))
-        fake_B, weights_norm = generator(real_A)
+        #fake_B, weights_norm = generator(real_A)
+        fake_B, wsum, wcnt = generator(real_A)
+        weights_norm = wsum.sum() / wcnt.sum()   # correct global mean  There might be a bug here
         fake_B = torch.round(fake_B*255)
         real_B = torch.round(real_B*255)
         mse = criterion_pixelwise(fake_B, real_B)
@@ -272,6 +326,7 @@ def compute_gradient_penalty(D, real_samples, fake_samples):
     interpolates = (alpha*real_samples + (1-alpha)*fake_samples).requires_grad_(True)
     d_interpolates = D(interpolates)
     fake = torch.ones((real_samples.size(0),1,1,1), device=device, dtype=dtype)
+    # Get gradient w.r.t. interpolates
     gradients = autograd.grad(
         outputs=d_interpolates, inputs=interpolates,
         grad_outputs=fake, create_graph=True, retain_graph=True, only_inputs=True
@@ -279,66 +334,6 @@ def compute_gradient_penalty(D, real_samples, fake_samples):
     gradients = gradients.view(gradients.size(0), -1)
     return ((gradients.norm(2, dim=1) - 1) ** 2).mean()
 
-
-"""
-# original
-def compute_gradient_penalty(D, real_samples, fake_samples):
-    #Calculates the gradient penalty loss for WGAN GP
-    alpha = Tensor(np.random.random((real_samples.size(0), 1, 1, 1)))
-    interpolates = (alpha * real_samples + ((1 - alpha) * fake_samples)).requires_grad_(True)
-    d_interpolates = D(interpolates)
-    fake = Variable(Tensor(real_samples.shape[0], 1, 1, 1).fill_(1.0), requires_grad=False)
-    gradients = autograd.grad(
-        outputs=d_interpolates,
-        inputs=interpolates,
-        grad_outputs=fake,
-        create_graph=True,
-        retain_graph=True,
-        only_inputs=True,
-    )[0]
-    gradients = gradients.view(gradients.size(0), -1)
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
-    return gradient_penalty
-"""
-# filename helpers (preserve original names safely)
-
-def _unique_path(dest_dir: Path, filename: str) -> Path:
-    out = dest_dir / filename
-    if not out.exists():
-        return out
-    stem, ext, i = out.stem, out.suffix, 1
-    while True:
-        cand = dest_dir / f"{stem}_{i}{ext}"
-        if not cand.exists():
-            return cand
-        i += 1
-"""
-@torch.no_grad()
-def export_generated_from_valA(val_loader, generator, out_dir: Path, Tensor):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    was = generator.training
-    generator.eval()
-    idx = 0
-    for batch in val_loader:
-        x = batch["A_input"].type(Tensor)
-        y, _ = generator(x)
-        names = batch.get("input_name", None)
-        for k in range(y.size(0)):
-            if names is not None:
-                # use original filename as-is, just strip any path
-                fname = os.path.basename(str(names[k]))
-                # default extension if missing
-                if not os.path.splitext(fname)[1]:
-                    fname = fname + ".jpg"
-            else:
-                fname = f"{idx:06d}.jpg"
-            out_path = _unique_path(out_dir, fname)
-            img = y[k].detach().cpu().clamp(0, 1)  # guarantees [0,1]
-            save_image(img, out_path, normalize=False)
-            idx += 1
-    if was: generator.train()
-    return idx
-"""
 
 @torch.no_grad()
 def export_generated_from_valA(val_loader, generator, out_dir: Path, Tensor, export_ext: str):
@@ -348,7 +343,7 @@ def export_generated_from_valA(val_loader, generator, out_dir: Path, Tensor, exp
     idx = 0
     for batch in val_loader:
         x = batch["A_input"].type(Tensor)
-        y, _ = generator(x)
+        y= generator(x)[0]
         names = batch.get("input_name", None)
         for k in range(y.size(0)):
             base = os.path.basename(str(names[k])) if names is not None else f"{idx:06d}"
@@ -358,28 +353,6 @@ def export_generated_from_valA(val_loader, generator, out_dir: Path, Tensor, exp
             idx += 1
     if was: generator.train()
     return idx
-
-"""
-@torch.no_grad()
-def export_real_B_from_valB(val_loader, out_dir: Path, Tensor):
-    out_dir.mkdir(parents=True, exist_ok=True)
-    idx = 0
-    for batch in val_loader:
-        xr = batch["A_input"].type(Tensor)
-        names = batch.get("input_name", None)
-        for k in range(xr.size(0)):
-            if names is not None:
-                fname = os.path.basename(str(names[k]))
-                if not os.path.splitext(fname)[1]:
-                    fname = fname + ".jpg"
-            else:
-                fname = f"{idx:06d}.jpg"
-            out_path = _unique_path(out_dir, fname)
-            img = xr[k].detach().cpu().clamp(0, 1)  # guarantees [0,1]
-            save_image(img, out_path, normalize=False)
-            idx += 1
-    return idx
-"""
 
 @torch.no_grad()
 def export_real_B_from_valB(val_loader, out_dir: Path, Tensor, export_ext: str):
@@ -416,8 +389,6 @@ def _compute_fid_kid(dir_fake: Path, dir_real: Path):
     kid = float(metrics["kernel_inception_distance_mean"])
     return fid, kid
 
-
-
 def visualize_result(epoch):
     """Saves a generated sample from the validation set"""
     os.makedirs("images/LUTs/" +str(epoch), exist_ok=True)
@@ -437,7 +408,16 @@ def visualize_result(epoch):
     if was_train:
         generator.train()
 
-
+# === NEW: best-epoch save ===
+def _save_best_epochs(run_dir: Path, best_fid, best_fid_epoch, best_kid, best_kid_epoch):
+    payload = {
+        "best_fid": None if best_fid == float('inf') else float(best_fid),
+        "best_fid_epoch": best_fid_epoch,
+        "best_kid": None if best_kid == float('inf') else float(best_kid),
+        "best_kid_epoch": best_kid_epoch,
+    }
+    with open(run_dir / "best_epochs.json", "w") as f:
+        json.dump(payload, f, indent=2)
 # ----------
 #  Training
 # ----------
@@ -445,9 +425,13 @@ avg_psnr = calculate_psnr()
 print(avg_psnr)
 best_fid = float('inf')     # initialize best tracker
 best_fid_epoch = None
+best_kid = float('inf')     # initialize best tracker
+best_kid_epoch = None
 prev_time = time.time()
 max_psnr = 0
 max_epoch = 0
+
+from tqdm.auto import tqdm
 
 for epoch in range(cfg.epoch, cfg.n_epochs):
     loss_D_avg = 0
@@ -455,22 +439,39 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
     loss_pixel_avg = 0
     cnt = 0
     psnr_avg = 0
+    tv_sum = 0.0
+    mn_sum = 0.0
+    wn_sum = 0.0
+
     # classifier now lives inside generator
+    if partial_mode == "partial_epoch" and cfg.steps_per_epoch > 0:
+        total_steps = cfg.steps_per_epoch
+    else:
+        total_steps = len(dataloader)
+
     generator.train()
-    for i, batch in enumerate(dataloader):
+    bar = tqdm(dataloader, total=total_steps, leave=True, dynamic_ncols=True)
+    bar.set_description(f"Epoch {epoch}/{cfg.n_epochs-1}")
+    
+    
+    log_path = Path(run_dir) / "fid_kid.csv"
+    if epoch == cfg.epoch:                     # first epoch of this (re)start
+        if cfg.epoch == 0 and log_path.exists():
+            log_path.unlink()                  # new run -> start clean
+
+    for i, batch in enumerate(bar,start=1):
 
         # Model inputs
-        real_A = Variable(batch["A_input"].type(Tensor))
-        real_B = Variable(batch["B_exptC"].type(Tensor))
+        real_A = batch["A_input"].to(device, non_blocking=True)
+        real_B = batch["B_exptC"].to(device, non_blocking=True)
 
         # ---------------------
         #  Train Discriminator
         # ---------------------
         optimizer_D.zero_grad()
-        fake_B, weights_norm = generator(real_A)
-        # === NEW/CHANGED ===↓↓↓ Minimal fix: reduce DP-stacked scalars to one scalar
-        if isinstance(weights_norm, torch.Tensor) and weights_norm.dim() > 0:
-            weights_norm = weights_norm.mean()
+        #fake_B, weights_norm = generator(real_A)
+        fake_B, wsum, wcnt = generator(real_A)
+        weights_norm = wsum.sum() / wcnt.sum()   # correct global mean after gather from micro batches from DP
         pred_real = discriminator(real_B)
         pred_fake = discriminator(fake_B.detach())
         gradient_penalty = compute_gradient_penalty(discriminator, real_B, fake_B.detach())
@@ -484,10 +485,10 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
         # ------------------
         if i % cfg.n_critic == 0:
             optimizer_G.zero_grad()
-            fake_B, weights_norm = generator(real_A)
+            #fake_B, weights_norm = generator(real_A)
+            fake_B, wsum, wcnt = generator(real_A)
+            weights_norm = wsum.sum() / wcnt.sum()   # correct global mean
             # === NEW/CHANGED === ↓↓↓ Minimal fix: reduce DP-stacked scalars to one scalar
-            if isinstance(weights_norm, torch.Tensor) and weights_norm.dim() > 0:
-                weights_norm = weights_norm.mean()
             pred_fake = discriminator(fake_B)
             # Pixel-wise loss (unpaired): keep close to input
             loss_pixel = criterion_pixelwise(fake_B, real_A)
@@ -508,46 +509,46 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
             loss_G_avg += -torch.mean(pred_fake)
             loss_pixel_avg += loss_pixel
             psnr_avg += 10 * math.log10(1 / max(loss_pixel.item(), 1e-12))
+            tv_sum += float(tv_cons.detach())
+            mn_sum += float(mn_cons.detach())
+            wn_sum += float(weights_norm.detach())
 
         # --------------
         #  Log Progress
         # --------------
-        batches_done = epoch * len(dataloader) + i
-        batches_left = cfg.n_epochs * len(dataloader) - batches_done
-        time_left = datetime.timedelta(seconds=batches_left * (time.time() - prev_time))
-        prev_time = time.time()
+    
+        # ... forward/backward/step, compute losses, etc. ...
 
-        sys.stdout.write(
-            "\r[Epoch %d/%d] [Batch %d/%d] [D: %f, G: %f] [pixel: %f] [tv: %f, wnorm: %f, mn: %f] ETA: %s"
-            % (
-                epoch,
-                cfg.n_epochs,
-                i,
-                len(dataloader),
-                loss_D_avg.item() / max(cnt,1),
-                loss_G_avg.item() / max(cnt,1),
-                loss_pixel_avg.item() / max(cnt,1),
-                tv_cons, weights_norm, mn_cons,
-                time_left,
-            )
-        )
+        # live metrics on the right side of the bar
+        bar.set_postfix({
+            "D": f"{loss_D_avg.item()/max(cnt,1):.4f}",
+            "G": f"{loss_G_avg.item()/max(cnt,1):.4f}",
+            "px": f"{loss_pixel_avg.item()/max(cnt,1):.4f}",
+            "tv": f"{tv_cons:.4f}",
+            "wn": f"{weights_norm:.4f}",
+            "mn": f"{mn_cons:.4f}",
+        })
+
+        # Early-break partial epoch if using the simple mode
+        if partial_mode == "partial_epoch" and cfg.steps_per_epoch > 0 and cnt >= cfg.steps_per_epoch:
+            break
+
+    # end-of-epoch summary (printed once per epoch)
     # PSNR (paired test only)
     avg_psnr = calculate_psnr()
     if avg_psnr is None:
-        sys.stdout.write(" [PSNR: skipped]\n")
-
+        pass
     else:
         if avg_psnr > max_psnr:
-            max_psnr = avg_psnr
-            max_epoch = epoch
-        sys.stdout.write(" [PSNR: %f] [max PSNR: %f, epoch: %d]\n"% (avg_psnr, max_psnr, max_epoch))
+            max_psnr, max_epoch = avg_psnr, epoch
+        print(f"[PSNR: {avg_psnr:.6f}] [max PSNR: {max_psnr:.6f}, epoch: {max_epoch}]")
+
 
     # FID/KID (unpaired val)
-
     if _HAS_TF and cfg.fid_every > 0 and (val_A_loader is not None) and (val_B_loader is not None):
         if (epoch % cfg.fid_every == 0) or (epoch == cfg.n_epochs - 1):
             export_root = Path(cfg.export_dir) if getattr(cfg, "export_dir", "") else (Path(run_dir) / "metrics")
-            fake_dir = export_root / "fake_tmp"
+            fake_dir = export_root / "fake_tmp" / f'{epoch}'
             real_dir = Path(cfg.val_b_corpus) if getattr(cfg, "val_b_corpus", "") else (export_root / "realB_cache")
 
             # clean/reuse fake_tmp
@@ -572,20 +573,40 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
                 fid = float(metrics["frechet_inception_distance"])
                 kid = float(metrics["kernel_inception_distance_mean"])
                 print(f"\n[VAL] epoch {epoch}  FID: {fid:.3f}  KID: {kid:.5f}")
-                with open(Path(run_dir) / "fid_kid.csv", "a") as f:
-                    if epoch == cfg.epoch:
+                log_path = Path(run_dir) / "fid_kid.csv"
+                header_needed = (not log_path.exists()) or (log_path.stat().st_size == 0)
+                with open(log_path, "a") as f:
+                    if header_needed:
                         f.write("epoch,fid,kid\n")
                     f.write(f"{epoch},{fid:.6f},{kid:.6f}\n")
 
                 if fid < best_fid:
                     best_fid = fid
+                    best_fid_epoch = epoch  # === NEW: record epoch ===
+                    print(f'Update best fid at epoch {epoch}')
                     gen_ref = generator.module if isinstance(generator, nn.DataParallel) else generator
                     LUTs = {"0": gen_ref.LUT0.state_dict(), "1": gen_ref.LUT1.state_dict(), "2": gen_ref.LUT2.state_dict()}
-                    torch.save(LUTs, str(run_dir / "LUTs_best_fid.pth"))
-                    torch.save(gen_ref.classifier.state_dict(), str(run_dir / "classifier_best_fid.pth"))
+                    torch.save(LUTs, str(run_dir / f"LUTs_best_fid.pth"))
+                    torch.save(gen_ref.classifier.state_dict(), str(run_dir / f"classifier_best_fid.pth"))
+                    _save_best_epochs(run_dir, best_fid, best_fid_epoch, best_kid, best_kid_epoch)  # === NEW ===
+
+
+
+                if kid < best_kid:
+                    best_kid = kid
+                    best_kid_epoch = epoch  # === NEW: record epoch ===
+                    print(f'Update best kid at epoch {epoch}')
+                    gen_ref = generator.module if isinstance(generator, nn.DataParallel) else generator
+                    LUTs = {"0": gen_ref.LUT0.state_dict(), "1": gen_ref.LUT1.state_dict(), "2": gen_ref.LUT2.state_dict()}
+                    torch.save(LUTs, str(run_dir / f"LUTs_best_kid.pth"))
+                    torch.save(gen_ref.classifier.state_dict(), str(run_dir / f"classifier_best_kid.pth"))
+                    _save_best_epochs(run_dir, best_fid, best_fid_epoch, best_kid, best_kid_epoch)  # === NEW ===
+
+
 
             # cleanup fakes unless asked to keep
-            if not getattr(cfg, "keep_fid_images", False):
+            delete_fake_img = (not cfg.keep_fid_images) or (epoch > 0 and epoch % 50 == 0)
+            if delete_fake_img:
                 shutil.rmtree(fake_dir, ignore_errors=True)
 
     if epoch % cfg.checkpoint_interval == 0:
@@ -594,7 +615,18 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
         LUTs = {"0": gen_ref.LUT0.state_dict(), "1": gen_ref.LUT1.state_dict(), "2": gen_ref.LUT2.state_dict()}
         torch.save(LUTs, str(run_dir / f"LUTs_{epoch}.pth"))
         torch.save(gen_ref.classifier.state_dict(), str(run_dir / f"classifier_{epoch}.pth"))
+        D_avg = (loss_D_avg / max(cnt, 1)).item()
+        G_avg = (loss_G_avg / max(cnt, 1)).item()
+        PX_avg = (loss_pixel_avg / max(cnt, 1)).item()
+        TV_avg = tv_sum / max(cnt, 1)
+        WN_avg = wn_sum / max(cnt, 1)
+        MN_avg = mn_sum / max(cnt, 1)
+        line = (f"[epoch {epoch}] " f"D:{D_avg:.4f}  G:{G_avg:.4f}  px:{PX_avg:.4f}  " f"tv:{TV_avg:.4f}  wn:{WN_avg:.4f}  mn:{MN_avg:.4f}")
+        print(line)
         with open(run_dir / "result.txt", "a") as f:
+            f.write(line + "\n")
+
+        with open(run_dir / "psnr_result.txt", "a") as f:
             if avg_psnr is None:
                 f.write("[PSNR: skipped]\n")
             else:
