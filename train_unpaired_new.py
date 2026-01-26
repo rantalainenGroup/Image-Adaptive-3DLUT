@@ -25,15 +25,9 @@ import torch
 from torchvision.transforms.functional import to_pil_image
 import shutil, os
 
-
-
-
-
-
-# === NEW/CHANGED ===
 from utils.config import load_and_merge_config, save_configs
 
-# ========= NEW: metrics import (safe) =========
+# ========= optional new metrics (FID/KID) for unpaired data (safe) =========
 try:
     from torch_fidelity import calculate_metrics as _tf_calculate_metrics
     _HAS_TF = True
@@ -42,6 +36,10 @@ except Exception:
 import shutil
 
 
+
+# ----------------------------
+# Args
+# ----------------------------
 parser = argparse.ArgumentParser()
 # === NEW/CHANGED === config + gpus
 parser.add_argument("--config", type=str, help="YAML/JSON config file")
@@ -55,9 +53,7 @@ parser.add_argument("--epoch", type=int, default=0, help="epoch to start trainin
 parser.add_argument("--n_epochs", type=int, default=300, help="total number of epochs of training")
 parser.add_argument("--dataset_name", type=str, default="scanb_malmo", help="name of the dataset")
 
-
-
-# === NEW/CHANGED === expose input_color_space (your code uses it later)
+# === NEW/CHANGED === expose input_color_space 
 parser.add_argument("--input_color_space", type=str, default="sRGB", choices=["sRGB","XYZ"], help="input color space")
 parser.add_argument("--batch_size", type=int, default=64, help="size of the batches")
 parser.add_argument("--steps_per_epoch", type=int, default=150, help="steps per partial epoch")
@@ -81,19 +77,12 @@ parser.add_argument("--export_dir", type=str, default="", help="Where to write e
 parser.add_argument("--keep_fid_images", action="store_true", help="Keep exported fake images (default: delete)")
 parser.add_argument("--export_ext", type=str, default="png", choices=["png","jpg","jpeg"], help="Output format for generated images (default: png)")
 
-"""
-seed = 123
-random.seed(seed); np.random.seed(seed)
-torch.manual_seed(seed); torch.cuda.manual_seed_all(seed)
-torch.backends.cudnn.deterministic = True
-torch.backends.cudnn.benchmark = False
-g = torch.Generator(); g.manual_seed(seed)
-"""
 
 
 # ----------------------------
 #       Utility functions
 # ----------------------------
+# === NEW/CHANGED ===
 def set_all_seeds(seed: int = 123):
     random.seed(seed)
     import numpy as np
@@ -136,7 +125,10 @@ def _unique_path(dest_dir: Path, filename: str) -> Path:
 
 
 
-# === NEW/CHANGED === config merge + run dir
+# ----------------------------
+# Config merge + run dir
+# ----------------------------
+# === NEW/CHANGED ===
 cfg, run_dir, eff = load_and_merge_config(parser)
 save_configs(run_dir, eff, getattr(cfg, "config", None))
 print(f"[Run dir] {run_dir}")
@@ -146,10 +138,17 @@ cuda = True if torch.cuda.is_available() else False
 device = torch.device("cuda" if cuda else "cpu")
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
 
-# Loss functions
+
+# ----------------------------
+# Train loss
+# --------------------------
 criterion_GAN = torch.nn.MSELoss().to(device)
 criterion_pixelwise = torch.nn.MSELoss().to(device)
 
+
+# ----------------------------
+# Models
+# ----------------------------
 # Initialize generator and discriminator
 LUT0 = Generator3DLUT_identity()
 LUT1 = Generator3DLUT_zero()
@@ -171,7 +170,12 @@ if cuda:
     TV3.weight_g = TV3.weight_g.type(Tensor)
     TV3.weight_b = TV3.weight_b.type(Tensor)
 
-# === NEW/CHANGED === minimal wrapper module so we can DataParallel the generator path
+
+
+# ----------------------------
+# Generator wrapper (DataParallel safe)
+# ----------------------------
+# === NEW/CHANGED === 
 class LUTGenerator(nn.Module):
     def __init__(self, lut0, lut1, lut2, classifier):
         super().__init__()
@@ -185,7 +189,6 @@ class LUTGenerator(nn.Module):
         # logits or raw scores
         pred = self.classifier(img)              # expect [B,3] or [B,3,1,1] 
         #print (f'weight shape is', {pred.shape}) # debug
-
         if pred.dim() > 2:
             pred = pred.view(B, -1)[:, :3] # [B,3]
         elif pred.dim() == 1:
@@ -199,13 +202,12 @@ class LUTGenerator(nn.Module):
             y1 = self.LUT1(x)
             y2 = self.LUT2(x)
             wb = pred[b]
-            #y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2).clamp(0,1)
+            #y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2).clamp(0,1) # optional clamp, in the original implementation, didn't find any where to gurantee the output is in [0,1]
             y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2)
             outs.append(y)
         out = torch.cat(outs, dim=0)
         weights_sum = (pred ** 2).sum()                           # <- sum, not mean
         count = torch.tensor(pred.numel(), device=pred.device)    # <- count
-
         return out, weights_sum, count
 
 # === NEW/CHANGED === build generator module and (optionally) wrap in DataParallel
@@ -218,6 +220,10 @@ else:
     generator = generator_core
     print("[Multi-GPU] Disabled (single GPU or CPU)")
 
+
+# ----------------------------
+# Resume / init 
+# ----------------------------
 # === NEW/CHANGED === use cfg instead of opt/args for resume
 if cfg.epoch != 0:
     # Load pretrained models from run_dir
@@ -239,10 +245,13 @@ else:
 optimizer_G = torch.optim.Adam(itertools.chain((generator.parameters())),lr=cfg.lr, betas=(cfg.b1, cfg.b2))
 optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=cfg.lr, betas=(cfg.b1, cfg.b2))
 
-# === NEW/CHANGED === use cfg.* and keep your dataset wiring
-## === NEW/CHANGED === test/psnr loader (only if cfg.test_csv is set)
-psnr_dataloader = None
 
+
+# ----------------------------
+# Data loaders
+# ----------------------------
+## === NEW/CHANGED === test/psnr loader (only if cfg.test_csv is set and paired data exists)
+psnr_dataloader = None
 """
 if getattr(cfg, "val_csv", None):
     psnr_dataloader = DataLoader(
@@ -268,12 +277,8 @@ if cfg.input_color_space == 'sRGB':
         partial_mode = "partial_epoch"
     else:
         print('=========== Using full epoch training ===========')
-        dataloader = DataLoader(
-            ds_train,
-            batch_size=cfg.batch_size,
-            shuffle=True,
-            num_workers=cfg.n_cpu,
-            pin_memory=True, persistent_workers=(cfg.n_cpu > 0), prefetch_factor=(4 if cfg.n_cpu > 0 else None),
+        dataloader = DataLoader(ds_train, batch_size=cfg.batch_size, shuffle=True,
+            num_workers=cfg.n_cpu, pin_memory=True, persistent_workers=(cfg.n_cpu > 0), prefetch_factor=(4 if cfg.n_cpu > 0 else None),
         )
         partial_mode = "full_epoch"
 else: 
@@ -296,6 +301,10 @@ if getattr(cfg, "val_csv", ""):
     )
 
 
+
+# ----------------------------
+# Metrics helpers 
+# ----------------------------
 # --- PSNR helper (skips if no psnr_loader/no paired data) ---
 def calculate_psnr():
     if psnr_dataloader is None:
@@ -418,6 +427,8 @@ def _save_best_epochs(run_dir: Path, best_fid, best_fid_epoch, best_kid, best_ki
     }
     with open(run_dir / "best_epochs.json", "w") as f:
         json.dump(payload, f, indent=2)
+
+
 # ----------
 #  Training
 # ----------

@@ -1,4 +1,4 @@
-name: chime_env_v2_1
+name: chime_env_v2_lut
 channels:
   - nvidia
   - pytorch
@@ -606,4 +606,4 @@ dependencies:
   - pip:
     - openphi==2.1.0
     - torch-fidelity==0.3.0
-prefix: /home/bojing/anaconda3/envs/chime_env_v2_1
+prefix: /home/bojing/anaconda3/envs/chime_env_v2_lut

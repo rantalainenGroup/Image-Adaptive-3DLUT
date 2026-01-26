@@ -14,7 +14,14 @@ CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_04.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_05.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
-  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_07.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_07.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_08.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_09.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_10.yaml"
+  #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_11.yaml"
+  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_12.yaml"
+  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_13.yaml"
+  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_14.yaml"
 )
 
 for CONFIG in "${CONFIGS[@]}"; do
@@ -24,5 +31,4 @@ for CONFIG in "${CONFIGS[@]}"; do
   --config "$CONFIG" >> "$log_file"
   log "Finished $CONFIG. Time used: ${SECONDS}s"
 done
-
 

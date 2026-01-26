@@ -5,7 +5,7 @@ from torchvision.utils import save_image
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
-from models import *
+from models_x import *
 from datasets import *
 
 
@@ -78,7 +78,7 @@ def generator(img):
     LUT = pred[0] * LUT0.LUT + pred[1] * LUT1.LUT + pred[2] * LUT2.LUT #+ pred[3] * LUT3.LUT + pred[4] * LUT4.LUT
 
     combine_A = img.new(img.size())
-    combine_A = trilinear_(LUT,img)
+    _, combine_A = trilinear_(LUT,img)
 
     return combine_A
 

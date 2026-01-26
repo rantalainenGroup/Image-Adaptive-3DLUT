@@ -178,21 +178,21 @@ class ImageDataset_sRGB_unpaired(Dataset):
         self.mode = mode
         self.unpaird_data = unpaird_data
 
-        file = open(os.path.join(root,'train_input.txt'),'r')
+        file = open(os.path.join(root,'train_input.txt'),'r')  # source domain
         set1_input_files = sorted(file.readlines())
         self.set1_input_files = list()
         self.set1_expert_files = list()
         for i in range(len(set1_input_files)):
-            self.set1_input_files.append(os.path.join(root,"input","JPG/480p",set1_input_files[i][:-1] + ".jpg"))
-            self.set1_expert_files.append(os.path.join(root,"expertC","JPG/480p",set1_input_files[i][:-1] + ".jpg"))
+            self.set1_input_files.append(os.path.join(root,"input","JPG/480p",set1_input_files[i][:-1] + ".jpg")) # input in source domain
+            self.set1_expert_files.append(os.path.join(root,"expertC","JPG/480p",set1_input_files[i][:-1] + ".jpg")) # paired data in the target domain, only used to calculated psnr
 
         file = open(os.path.join(root,'train_label.txt'),'r')
         set2_input_files = sorted(file.readlines())
         self.set2_input_files = list()
         self.set2_expert_files = list()
         for i in range(len(set2_input_files)):
-            self.set2_input_files.append(os.path.join(root,"input","JPG/480p",set2_input_files[i][:-1] + ".jpg"))
-            self.set2_expert_files.append(os.path.join(root,"expertC","JPG/480p",set2_input_files[i][:-1] + ".jpg"))
+            self.set2_input_files.append(os.path.join(root,"input","JPG/480p",set2_input_files[i][:-1] + ".jpg")) # paried data in source domain, not used
+            self.set2_expert_files.append(os.path.join(root,"expertC","JPG/480p",set2_input_files[i][:-1] + ".jpg")) # target domain
 
         file = open(os.path.join(root,'test.txt'),'r')
         test_input_files = sorted(file.readlines())

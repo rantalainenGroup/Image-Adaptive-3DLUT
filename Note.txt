@@ -1,0 +1,39 @@
+Note: 
+1. To compile the c++ implementation for 3D interpoliation, CUDA tools needs to be installed. Compare with the previous chime_env_v2
+for difference. 
+/home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup_original.py ,  /home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup_original.sh are the original files.
+/home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup.py ,  /home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup.sh are the modified files compatiable to the environment
+
+
+2. Original implementation using paired data for model selection, I used kid/fid
+3. Batch size affect GAN loss, try with moderate batch_size between 32-64. tested batch_size 64 better than 128
+4. taking median of LUT weights reduce noise. median works better than mean
+5. larger batch size -> smoother gradient -> increase learning rate -> instability 
+https://www.youtube.com/watch?v=TibQO_xv1zc&t=1982s, 
+
+6. tunning lambda_smooth (parameters to increase the penaty for total variance) does not remove the pixelation artefacts. 
+In fact increasing and decreasing the lambda_smooth can introduce more artefacts if the gan loss get crazy.
+
+
+
+
+Experiments
+configs/unpaired/exp_unpaired.yaml
+
+# exp_01: FID based on jpg, weight not soft max, augmentaion
+# exp_02: FID based on png, augmentation, weight softmax, correct batch ghosting (ie.LUT op per sample and does not allow batch op)
+# exp_03: FID based on png, no softmax, no augmentation
+# exp_04: batch_size = 64, ngpu = 4
+# exp_05: batch_size = 64, ngpu = 1
+# exp_06: batch_size = 32, ngpu = 4
+# exp_07: batch_size = 64, partial epoch, ngpu = 4, 
+
+## folders from experiments below are deleted. 
+# exp_08: same as exp_07, but increase lambda_smooth =  0.0025, test for 10 epoches
+# exp_09: same as exp_07, but increase lambda_smooth =  0.002, test for 10 epoches
+# exp_10: same as exp_07, but increase lambda_smooth =  0.0015, test for 10 epoches
+# exp_11: same as exp_07, but increase lambda_smooth =  0.001, test for 10 epoches
+# exp_12: same as exp_07, but increase lambda_smooth =  0.0005, test for 10 epoches
+# exp_13: same as exp_07, but increase lambda_smooth =  0.0001, test for 10 epoches
+# exp_14: same as exp_07, but increase lambda_smooth =  0.00005, test for 10 epoches
+ 
