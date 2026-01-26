@@ -5,13 +5,22 @@ for difference.
 /home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup.py ,  /home/bojing/Image-Adaptive-3DLUT/trilinear_cpp/setup.sh are the modified files compatiable to the environment
 
 
-2. Original implementation using paired data for model selection, I used kid/fid
-3. Batch size affect GAN loss, try with moderate batch_size between 32-64. tested batch_size 64 better than 128
-4. taking median of LUT weights reduce noise. median works better than mean
-5. larger batch size -> smoother gradient -> increase learning rate -> instability 
+
+2. Did change the original scripts:
+    Image-Adaptive-3DLUT/image_adaptive_lut_evaluation.py
+    Image-Adaptive-3DLUT/image_adaptive_lut_train_paired.py
+    Image-Adaptive-3DLUT/image_adaptive_lut_train_unpaired.py
+
+Instead, generate new training and evaluation scripts:
+    Image-Adaptive-3DLUT/train_unpaired_new.py and Image-Adaptive-3DLUT/evaluation_new.py
+
+3. Original implementation using paired data for model selection (i.e. using psnr), I used kid/fid
+4. Batch size affect GAN loss, try with moderate batch_size between 32-64. tested batch_size 64 better than 128
+5. taking median of LUT weights reduce noise. median works better than mean
+6. larger batch size -> smoother gradient -> increase learning rate -> instability 
 https://www.youtube.com/watch?v=TibQO_xv1zc&t=1982s, 
 
-6. tunning lambda_smooth (parameters to increase the penaty for total variance) does not remove the pixelation artefacts. 
+7. tunning lambda_smooth (parameters to increase the penaty for total variance) does not remove the pixelation artefacts. 
 In fact increasing and decreasing the lambda_smooth can introduce more artefacts if the gan loss get crazy.
 
 
