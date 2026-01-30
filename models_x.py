@@ -7,7 +7,7 @@ import torch
 import numpy as np
 import math
 import sys
-sys.path.append("/home/bojing/Image-Adaptive-3DLUT/trilinear_cpp")
+sys.path.append("/home/ferbue/Image-Adaptive-3DLUT/trilinear_cpp")
 import trilinear
 
 def weights_init_normal_classifier(m):
