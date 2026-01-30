@@ -22,7 +22,8 @@ CONFIGS=(
   # "/home/bojing/Image-Adaptive-3DLUT/configs/exp_12.yaml"
   # "/home/bojing/Image-Adaptive-3DLUT/configs/exp_13.yaml"
   # "/home/bojing/Image-Adaptive-3DLUT/configs/exp_14.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_16.yaml"
 )
 
 for CONFIG in "${CONFIGS[@]}"; do
