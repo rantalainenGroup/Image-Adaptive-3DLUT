@@ -234,12 +234,25 @@ if cfg.epoch != 0:
     gen_ref.LUT2.load_state_dict(LUTs["2"])
     gen_ref.classifier.load_state_dict(torch.load(str(run_dir / f"classifier_{cfg.epoch}.pth"), map_location=device))
 else:
-    # Initialize weights
-    gen_ref = generator.module if isinstance(generator, nn.DataParallel) else generator
-    gen_ref.classifier.apply(weights_init_normal_classifier)
-    torch.nn.init.constant_(gen_ref.classifier.model[12].bias.data, 1.0)
-    disc_ref = discriminator.module if isinstance(discriminator, nn.DataParallel) else discriminator
-    disc_ref.apply(weights_init_normal_classifier)
+    if cfg.pretrained_weights:
+            # Load pretrained models from repo
+        LUTs = torch.load("/home/ferbue/Image-Adaptive-3DLUT/pretrained_models/sRGB/LUTs_unpaired.pth", map_location=device)
+        gen_ref = generator.module if isinstance(generator, nn.DataParallel) else generator
+        gen_ref.LUT0.load_state_dict(LUTs["0"])
+        gen_ref.LUT1.load_state_dict(LUTs["1"])
+        gen_ref.LUT2.load_state_dict(LUTs["2"])
+        gen_ref.classifier.load_state_dict(torch.load("/home/ferbue/Image-Adaptive-3DLUT/pretrained_models/sRGB/classifier_unpaired.pth", map_location=device))
+        
+    else:
+        # Initialize weights
+        gen_ref = generator.module if isinstance(generator, nn.DataParallel) else generator
+        gen_ref.classifier.apply(weights_init_normal_classifier)
+        torch.nn.init.constant_(gen_ref.classifier.model[12].bias.data, 1.0)
+        disc_ref = discriminator.module if isinstance(discriminator, nn.DataParallel) else discriminator
+        disc_ref.apply(weights_init_normal_classifier)
+
+    
+
 
 # Optimizers works for dp or single
 optimizer_G = torch.optim.Adam(itertools.chain((generator.parameters())),lr=cfg.lr, betas=(cfg.b1, cfg.b2))
@@ -496,6 +509,7 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
         # ------------------
         if i % cfg.n_critic == 0:
             optimizer_G.zero_grad()
+            optimizer_D.zero_grad()
             #fake_B, weights_norm = generator(real_A)
             fake_B, wsum, wcnt = generator(real_A)
             weights_norm = wsum.sum() / wcnt.sum()   # correct global mean

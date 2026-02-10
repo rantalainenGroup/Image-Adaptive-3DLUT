@@ -11,7 +11,7 @@ current_time=$(date "+%Y-%m-%d_%H-%M")
 
 # CHANGE!!!!
 TASK='3_evaluation'
-log_file="/home/bojing/Image-Adaptive-3DLUT/logs/${TASK}_${current_time}.log"
+log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/${TASK}_${current_time}.log"
 
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $@"  >> "$log_file"
@@ -30,7 +30,7 @@ CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_04.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_05.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
-  "/home/bojing/Image-Adaptive-3DLUT/configs/exp_07.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
 )
 BATCH_SIZE=256
 # --- timing (simple) ---
