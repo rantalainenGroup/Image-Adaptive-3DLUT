@@ -291,10 +291,11 @@ class ImageDataset_sRGB_unpaired_CSV(Dataset):
             self._load = load_PIL
 
         # Fast CSV read & filter
-        usecols = [col_name, "scanner_model_new", "split"]
+        usecols = [col_name, "scanner_model_new", "split", "blur"]
         df = pd.read_csv(csv_path, usecols=usecols, dtype={col_name:str, "scanner_model_new":str, "split":str})
         df = df.dropna(subset=[col_name, "scanner_model_new", "split"]).copy()
         df["path"] = df[col_name].astype(str).str.strip()
+        df = df[df["blur"]>250]
 
         # Vectorized partitioning (no iterrows)
         mA = (df["scanner_model_new"]=="PHILIPS")
@@ -306,6 +307,9 @@ class ImageDataset_sRGB_unpaired_CSV(Dataset):
         self.B_train = df.loc[mB & mTr, "path"].tolist()
         self.A_test  = df.loc[mA & mTe, "path"].tolist()
         self.B_test  = df.loc[mB & mTe, "path"].tolist()
+
+        print('Train samples:',len(self.A_train), len(self.B_train))
+        print('Test samples:',len(self.A_test), len(self.B_test))
 
         if mode=="train":
             if not self.A_train or not self.B_train:

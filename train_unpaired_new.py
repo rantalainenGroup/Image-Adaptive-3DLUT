@@ -99,7 +99,7 @@ def save_max_quality(t: torch.Tensor, out_stem: Path, fmt: str):
     """
     fmt = fmt.lower()
     if fmt == "jpeg": fmt = "jpg"
-    #img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
+    # img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0).clamp(0, 1)
     img = torch.nan_to_num(t.detach().cpu(), nan=0.0, posinf=1.0, neginf=0.0)
     pil = to_pil_image(img).convert("RGB")
     out_path = Path(out_stem).with_suffix("." + fmt)
@@ -202,8 +202,8 @@ class LUTGenerator(nn.Module):
             y1 = self.LUT1(x)
             y2 = self.LUT2(x)
             wb = pred[b]
-            #y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2).clamp(0,1) # optional clamp, in the original implementation, didn't find any where to gurantee the output is in [0,1]
-            y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2)
+            y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2).clamp(0,1) # optional clamp, in the original implementation, didn't find any where to gurantee the output is in [0,1]
+            # y  = (wb[0]*y0 + wb[1]*y1 + wb[2]*y2)
             outs.append(y)
         out = torch.cat(outs, dim=0)
         weights_sum = (pred ** 2).sum()                           # <- sum, not mean
@@ -466,6 +466,7 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
     tv_sum = 0.0
     mn_sum = 0.0
     wn_sum = 0.0
+    total_G_avg = 0
 
     # classifier now lives inside generator
     if partial_mode == "partial_epoch" and cfg.steps_per_epoch > 0:
@@ -532,11 +533,12 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
 
             cnt += 1
             loss_G_avg += -torch.mean(pred_fake)
-            loss_pixel_avg += loss_pixel
+            loss_pixel_avg += cfg.lambda_pixel * loss_pixel
             psnr_avg += 10 * math.log10(1 / max(loss_pixel.item(), 1e-12))
-            tv_sum += float(tv_cons.detach())
-            mn_sum += float(mn_cons.detach())
-            wn_sum += float(weights_norm.detach())
+            tv_sum += cfg.lambda_smooth * float(tv_cons.detach())
+            mn_sum += cfg.lambda_monotonicity * float(mn_cons.detach())
+            wn_sum += cfg.lambda_smooth * float(weights_norm.detach())
+            total_G_avg += -torch.mean(pred_fake) + cfg.lambda_pixel * loss_pixel +  cfg.lambda_smooth * (float(weights_norm.detach()) + float(tv_cons.detach())) + cfg.lambda_monotonicity * float(mn_cons.detach())
 
         # --------------
         #  Log Progress
@@ -548,10 +550,14 @@ for epoch in range(cfg.epoch, cfg.n_epochs):
         bar.set_postfix({
             "D": f"{loss_D_avg.item()/max(cnt,1):.4f}",
             "G": f"{loss_G_avg.item()/max(cnt,1):.4f}",
+            "T_G": f"{total_G_avg.item()/max(cnt,1):.4f}",
             "px": f"{loss_pixel_avg.item()/max(cnt,1):.4f}",
-            "tv": f"{tv_cons:.4f}",
-            "wn": f"{weights_norm:.4f}",
-            "mn": f"{mn_cons:.4f}",
+            "tv": f"{tv_sum/max(cnt,1):.4f}",
+            "wn": f"{wn_sum/max(cnt,1):.4f}",
+            "mn": f"{mn_sum/max(cnt,1):.4f}",
+            # "tv": f"{tv_cons:.4f}",
+            # "wn": f"{weights_norm:.4f}",
+            # "mn": f"{mn_cons:.4f}",
         })
 
         # Early-break partial epoch if using the simple mode

@@ -30,14 +30,15 @@ CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_04.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_05.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
 )
 BATCH_SIZE=256
 # --- timing (simple) ---
 for CONFIG in "${CONFIGS[@]}"; do
   SECONDS=0
 
-  python /home/bojing/Image-Adaptive-3DLUT/evaluation_new.py \
+  python /home/ferbue/Image-Adaptive-3DLUT/evaluation_new.py \
     --config "$CONFIG" --batch_size "$BATCH_SIZE" >> "$log_file"  
   log "Finished $CONFIG. Time used: ${SECONDS}s"
 done

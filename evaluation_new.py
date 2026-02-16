@@ -271,7 +271,7 @@ for i, wsi in enumerate(bar, start=1):
     
     # Optional: update the bar label/postfix with live info
     bar.set_description(f"WSI {i}/{len(unique_files)}")
-    bar.set_postfix(n_tiles=len(ds), weight=cfg.global_type if cfg.global_weight else "image-specific", refresh=False)
+    bar.set_postfix(n_tiles=len(ds), weight=cfg.global_type if cfg.use_global_weight else "image-specific", refresh=False)
 
 
 
@@ -281,7 +281,7 @@ for i, wsi in enumerate(bar, start=1):
         num_workers=cfg.n_cpu, pin_memory=cuda,
     )
 
-    if cfg.global_weight:
+    if cfg.use_global_weight:
         if "median" in cfg.global_type:
             global_w, W, rows = compute_median_weight(weight_loader, classifier, device)  # classifer(x) is embedded
             tqdm.write(f"[Eval] Median weight (projected): {global_w.detach().cpu().tolist()}")
@@ -327,7 +327,7 @@ for i, wsi in enumerate(bar, start=1):
 
     # ---------- Run + save using fixed median weight ----------
 
-    if cfg.global_weight:
+    if cfg.use_global_weight:
         print('==================using global weight =================')
 
         @torch.no_grad()
