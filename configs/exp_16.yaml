@@ -16,7 +16,7 @@
 
 # --- I/O ---
 output_dir: /mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired
-run_name: exp_16    # or "auto" for timestamped
+run_name: exp_18    # or "auto" for timestamped
 
 
 # --- data ---
@@ -30,7 +30,7 @@ test_domain: PHILIPS          # only used by your loader; keep if applicable
 
 # --- training ---
 epoch: 0
-n_epochs: 100         # CHANGE
+n_epochs: 11         # CHANGE
 batch_size: 64                # paper uses 1 for unpaired; increase if stable
 steps_per_epoch: 150
 lr: 0.0002
@@ -38,7 +38,7 @@ b1: 0.9
 b2: 0.999
 n_cpu: 8
 n_critic: 1
-checkpoint_interval: 10   # CHANGE
+checkpoint_interval: 1   # CHANGE
 data_augmentation: false
 pretrained_weights: true
 
@@ -54,7 +54,7 @@ gpus: 4                       # set 1 for single-GPU; >1 enables DataParallel
 # --- eval policy ---
 eval_target: auto
 # eval_target = auto, compute PSNR only if ground-truth is actually available; otherwise skip it.”
-fid_every:  10         # CHANGE           # (optional) compute every N epochs
+fid_every:  1         # CHANGE           # (optional) compute every N epochs
 val_b_corpus:
 export_dir:
 keep_fid_images: true
