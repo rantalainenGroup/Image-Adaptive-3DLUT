@@ -4,7 +4,7 @@
 current_time=$(date "+%Y-%m-%d_%H-%M")
 # CHANGE!!!!
 TASK='inference_uni'
-log_file="/home/bojing/Image-Adaptive-3DLUT/logs/4_${TASK}_${current_time}.log"
+log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/4_${TASK}_${current_time}.log"
 
 # Function to log messages with timestamps
 log() {
@@ -17,7 +17,7 @@ start_time=$(date +%s)
 
 # activate env
 eval "$(conda shell.bash hook)"
-conda activate chime_env_v2
+conda activate chime_env_v2_lut
 if [ $? -eq 0 ]; then
     echo "Environment 'chime_env_v2' activated successfully."
 else
@@ -29,27 +29,35 @@ NUM_GPUS=4
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 dataset_name="scanb_malmo"
-checkpoint="/home/bojing/unsupervised_feature_evaluation/model_evaluation/scripts/UNI/assets/ckpts/vit_large_patch16_224.dinov2.uni_mass100k/pytorch_model.bin"
-data_out_path="/mnt/ssd/bojing/Image-Adaptive-3DLUT/LUTs/unpaired/exp_07"
+checkpoint="/home/ferbue/Model_weights/UNI/pytorch_model.bin"
+data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_20"
 
 #df_path="/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test_macenko.csv"  # change
 #df_feature_name="scanb_malmo_philips_xr_test_macenko_uni" # changes
 
-df_path="/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test.csv"  # change
-df_feature_name="scanb_malmo_philips_xr_test_uni" # changes
+# df_path="/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test.csv"  # change
+# df_feature_name="scanb_malmo_philips_xr_test_uni" # changes
+
+
+# df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20.csv"  # change
+# df_feature_name="scanb_malmo_lut_exp20_uni" # changes
+
+df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20_bothscanners.csv" # change
+df_feature_name="scanb_malmo_lut_exp20_bothscans_uni" # changes
 
 
 batch_size=256   # change
 tile_size=224
 out_dim=1024
 model_name='uni'
-#tile_path='png_tile_path'
-tile_path='crude_tile_path'
+tile_path='png_tile_path' # For LUT
+# tile_path='crude_tile_path' # For original tiles
+tile_name='tile_name'
 #tile_path='macenko_tile_path'  # change
 
-log "Executing script at version: $(git log -1 --format="%H" -- /home/bojing/unsupervised_feature_evaluation/model_evaluation/scripts/run_inference_lut.py)"
+log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
 
-python /home/bojing/unsupervised_feature_evaluation/model_evaluation/scripts/run_inference_lut.py \
+python /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py \
     --dataset_name $dataset_name \
     --data_out_path $data_out_path \
     --df_path $df_path \

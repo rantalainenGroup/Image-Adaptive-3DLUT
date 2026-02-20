@@ -247,8 +247,8 @@ if cfg.input_color_space == "sRGB":
         col_name = 'crude_tile_path'
         usecols = [file_name, col_name, 'tissue_proportion', "scanner_model_new", "split"]
         df_all = pd.read_csv(cfg.test_csv, usecols=usecols, dtype={col_name:str, "scanner_model_new":str, "split":str})
-        df_all = df_all.dropna(subset=usecols).copy()
-        df = df_all[df_all['scanner_model_new']=='PHILIPS']  # only PHILIPS slides
+        df = df_all.dropna(subset=usecols).copy()
+        # df = df_all[df_all['scanner_model_new']=='PHILIPS']  # only PHILIPS slides
 
 from tqdm.auto import tqdm  # auto picks notebook/terminal backend
 
@@ -265,9 +265,11 @@ for i, wsi in enumerate(bar, start=1):
     # Data loader
     # ------------
     df_sub = df[df['file_name'] == wsi].reset_index(drop=True).copy()
+    test_domain = df_sub['scanner_model_new'].iloc[0] # should work for all images
 
     if cfg.input_color_space == "sRGB":
-        ds = ImageDataset_sRGB_unpaired_CSV_inference(df_sub, mode="test", test_domain="PHILIPS")
+        # ds = ImageDataset_sRGB_unpaired_CSV_inference(df_sub, mode="test", test_domain="PHILIPS")
+        ds = ImageDataset_sRGB_unpaired_CSV_inference(df_sub, mode="test", test_domain=test_domain) # should work for all images
     
     # Optional: update the bar label/postfix with live info
     bar.set_description(f"WSI {i}/{len(unique_files)}")

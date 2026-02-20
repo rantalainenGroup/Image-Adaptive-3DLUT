@@ -11,8 +11,8 @@ from torchvision import transforms
 import timm
 from utils import *
 import time
-sys.path.append('/home/bojing/unsupervised_feature_evaluation/model_evaluation/scripts/UNI/')
-sys.path.append('/home/bojing/unsupervised_feature_evaluation/model_evaluation/scripts/')
+sys.path.append('/home/ferbue/unsupervised_feature_evaluation/model_evaluation/scripts/UNI/')
+sys.path.append('/home/ferbue/unsupervised_feature_evaluation/model_evaluation/scripts/')
 
 
 # loading all packages here to start
@@ -85,9 +85,27 @@ path = os.path.join(data_out_path, model_name, dataset_name, "h"+str(tile_size)+
 if not os.path.isdir(path):
     os.makedirs(path)
 
+def load_df(df_path):
+    # df = pd.read_csv(df_path)
+    # Fast CSV read & filter
+    # csv_path = '/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test.csv'
+    # tile_name = "tile_name"
+    # col_name = 'crude_tile_path'
+    usecols = [tile_path, tile_name, "scanner_model", "macenko_blur"]
+    df = pd.read_csv(df_path, usecols=usecols, dtype={tile_path:str, "scanner_model_new":str})
+    df = df.dropna(subset=[tile_path, "scanner_model"]).copy()
+    # df["path"] = df[col_name].astype(str).str.strip()
+    # df = df[df["blur"]>300] #used wrongly for the first set of features
+    df = df[df["macenko_blur"]>300]
+    # df.rename(columns={col_name:'tile_path'},inplace=True)
+    return df.to_dict("list")
+
+
 # load df to project
 df = load_df(df_path)
-print(f"{len(df)} tiles to process")
+print(f"{len(df[tile_name])} tiles to process")
+# print(tile_path, tile_name)
+# print(df.iloc[0])
 
 # Automatically determine the number of CPU cores
 num_workers = os.cpu_count()-4
