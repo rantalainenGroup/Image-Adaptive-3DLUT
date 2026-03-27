@@ -31,7 +31,8 @@ CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_05.yaml"
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
 )
 BATCH_SIZE=256
 # --- timing (simple) ---

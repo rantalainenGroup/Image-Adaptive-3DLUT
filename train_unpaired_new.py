@@ -277,7 +277,7 @@ if getattr(cfg, "val_csv", None):
 """
 
 if cfg.input_color_space == 'sRGB':
-    ds_train = ImageDataset_sRGB_unpaired_CSV(cfg.train_csv, mode="train", data_augmentation=cfg.data_augmentation)
+    ds_train = ImageDataset_sRGB_unpaired_CSV_v2(cfg.train_csv, mode="train", data_augmentation=cfg.data_augmentation, source_domain=cfg.test_domain, target_domain='XR')
 
     if getattr(cfg, "steps_per_epoch", 0) > 0:
         print('=========== Using partial epoch training ===========')
@@ -303,12 +303,12 @@ else:
 val_A_loader = val_B_loader = None
 if getattr(cfg, "val_csv", ""):
     val_A_loader = DataLoader(
-        ImageDataset_sRGB_unpaired_CSV(cfg.val_csv, mode="test", test_domain="PHILIPS"),
+        ImageDataset_sRGB_unpaired_CSV_v2(cfg.val_csv, mode="test", source_domain=cfg.test_domain, target_domain='XR'),
         batch_size=cfg.batch_size, shuffle=False,
         num_workers=max(1, cfg.n_cpu//2), pin_memory=(device.type=="cuda")
     )
     val_B_loader = DataLoader(
-        ImageDataset_sRGB_unpaired_CSV(cfg.val_csv, mode="test", test_domain="XR"),
+        ImageDataset_sRGB_unpaired_CSV_v2(cfg.val_csv, mode="test", source_domain="XR", target_domain='XR'),
         batch_size=cfg.batch_size, shuffle=False,
         num_workers=max(1, cfg.n_cpu//2), pin_memory=(device.type=="cuda")
     )

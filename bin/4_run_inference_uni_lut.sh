@@ -42,18 +42,19 @@ data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_20"
 # df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20.csv"  # change
 # df_feature_name="scanb_malmo_lut_exp20_uni" # changes
 
-df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20_bothscanners.csv" # change
-df_feature_name="scanb_malmo_lut_exp20_bothscans_uni" # changes
+df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20_bothscanners_v2.csv" # change
+df_feature_name="scanb_malmo_macenko_bothscans_uni" # changes
 
 
 batch_size=256   # change
 tile_size=224
 out_dim=1024
 model_name='uni'
-tile_path='png_tile_path' # For LUT
+# tile_path='png_tile_path' # For LUT
 # tile_path='crude_tile_path' # For original tiles
+tile_path='macenko_tile_path'  # For Macenko
 tile_name='tile_name'
-#tile_path='macenko_tile_path'  # change
+
 
 log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
 
