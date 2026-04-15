@@ -8,6 +8,15 @@ log(){ echo "$(date '+%Y-%m-%d %H:%M:%S') - $@" >> "$log_file"; }
 set -e
 cd "$(dirname "$0")/.."
 
+# activate env
+eval "$(conda shell.bash hook)"
+conda activate chime_env_v2_lut
+if [ $? -eq 0 ]; then
+    echo "Environment 'chime_env_v2' activated successfully."
+else
+    echo "Failed to activate environment 'chime_env_v2'."
+fi
+
 # >>> Define your YAMLs here <<<
 CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_01.yaml"
@@ -25,7 +34,8 @@ CONFIGS=(
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_19.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
+    "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
 )
 
 for CONFIG in "${CONFIGS[@]}"; do

@@ -269,7 +269,7 @@ for i, wsi in enumerate(bar, start=1):
 
     if cfg.input_color_space == "sRGB":
         # ds = ImageDataset_sRGB_unpaired_CSV_inference(df_sub, mode="test", test_domain="PHILIPS")
-        ds = ImageDataset_sRGB_unpaired_CSV_inference_v2(df_sub, mode="test", test_domain=test_domain) # should work for all images
+        ds = ImageDataset_sRGB_unpaired_CSV_inference_v2(df_sub, mode="test", source_domain=test_domain, target_domain="XR") # should work for all images
     
     # Optional: update the bar label/postfix with live info
     bar.set_description(f"WSI {i}/{len(unique_files)}")

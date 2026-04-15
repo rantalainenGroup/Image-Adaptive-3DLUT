@@ -17,6 +17,14 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $@"  >> "$log_file"
 }
 
+# activate env
+eval "$(conda shell.bash hook)"
+conda activate chime_env_v2_lut
+if [ $? -eq 0 ]; then
+    echo "Environment 'chime_env_v2' activated successfully."
+else
+    echo "Failed to activate environment 'chime_env_v2'."
+fi
 
 
 set -e
@@ -32,7 +40,9 @@ CONFIGS=(
   #"/home/bojing/Image-Adaptive-3DLUT/configs/exp_06.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_15.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
+
 )
 BATCH_SIZE=256
 # --- timing (simple) ---

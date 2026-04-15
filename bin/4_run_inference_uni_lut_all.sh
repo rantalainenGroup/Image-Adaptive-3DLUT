@@ -12,6 +12,10 @@ log() {
 }
 
 
+
+log "Started job with PID: $$"
+
+
 # Start the timer
 start_time=$(date +%s)
 
@@ -30,7 +34,7 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 
 dataset_name="scanb_malmo"
 checkpoint="/home/ferbue/Model_weights/UNI/pytorch_model.bin"
-# data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_21"
+
 
 #df_path="/mnt/ssd/bojing/Image-Adaptive-3DLUT/dataframes/scanb_malmo_philips_xr_test_macenko.csv"  # change
 #df_feature_name="scanb_malmo_philips_xr_test_macenko_uni" # changes
@@ -46,23 +50,34 @@ checkpoint="/home/ferbue/Model_weights/UNI/pytorch_model.bin"
 # df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp21_bothscanners_v2.csv" # change
 # df_feature_name="scanb_malmo_lut_s360_xr_uni" # changes
 
-
 data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_22"
 df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp22_bothscanners_v2.csv" # change
-df_feature_name="scanb_malmo_lut_aperio_xr_uni" # changes
+# df_feature_name="scanb_malmo_macenko_aperio_xr_uni" # changes
+
 
 
 batch_size=256   # change
 tile_size=224
 out_dim=1024
 model_name='uni'
-tile_path='png_tile_path' # For LUT
+# tile_path='png_tile_path' # For LUT
 # tile_path='crude_tile_path' # For original tiles
 # tile_path='macenko_tile_path'  # For Macenko
 tile_name='tile_name'
 
 
 log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
+
+tile_paths=("png_tile_path" "crude_tile_path" "macenko_tile_path")
+df_feature_names=("scanb_malmo_lut_aperio_xr_uni" "scanb_malmo_source_aperio_xr_uni" "scanb_malmo_macenko_aperio_xr_uni")
+
+for i in "${!tile_paths[@]}"; do
+
+tile_path="${tile_paths[$i]}"
+df_feature_name="${df_feature_names[$i]}"
+
+log "Running inference for tile_path: $tile_path"
+log "Using df_feature_name: $df_feature_name"
 
 python /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py \
     --dataset_name $dataset_name \
@@ -77,6 +92,8 @@ python /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py \
     --checkpoint  $checkpoint \
     --batch_size $batch_size \
     --df_feature_name "$df_feature_name" 2>&1 | tee -a "$log_file"
+
+done
 
 log "Script execution completed at $(date)"
 # Calculate and log the elapsed time
