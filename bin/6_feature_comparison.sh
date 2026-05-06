@@ -27,59 +27,59 @@ fi
 NUM_GPUS=4
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 
-# current_time=$(date "+%Y-%m-%d_%H-%M")
-# # CHANGE!!!!-----------------------------------------------------------------------------------------------------------------
-# TASK='Feature comparison'
-# log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/6_${TASK}_${current_time}.log"
+current_time=$(date "+%Y-%m-%d_%H-%M")
+# CHANGE!!!!-----------------------------------------------------------------------------------------------------------------
+TASK='Feature comparison'
+log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/6_${TASK}_${current_time}.log"
 
-# exp_id="20" # change
-# source_domain="PHILIPS" # change
-# target_domain="XR" # change
-# feat_csv="scanb_malmo_source_exp20_bothscans_uni.pkl" # change
-# feat_lut_csv="scanb_malmo_lut_exp20_bothscans_uni.pkl" # change
-# feat_macenko_csv="scanb_malmo_macenko_bothscans_uni.pkl" # change
-# test_df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20_bothscanners_v2.csv" # change
-
-
-# log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
+exp_id="20" # change
+source_domain="PHILIPS" # change
+target_domain="XR" # change
+feat_csv="scanb_malmo_source_exp20_bothscans_uni.pkl" # change
+feat_lut_csv="scanb_malmo_lut_exp20_bothscans_uni.pkl" # change
+feat_macenko_csv="scanb_malmo_macenko_bothscans_uni.pkl" # change
+test_df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp20_bothscanners_v2.csv" # change
 
 
-# python /home/ferbue/Image-Adaptive-3DLUT/Feature_comparison.py \
-#     --exp_id $exp_id \
-#     --source_domain $source_domain \
-#     --target_domain $target_domain \
-#     --feat_csv $feat_csv \
-#     --feat_lut_csv $feat_lut_csv \
-#     --feat_macenko_csv $feat_macenko_csv \
-#     --test_df_path $test_df_path 2>&1 | tee -a "$log_file"
+log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
+
+
+python /home/ferbue/Image-Adaptive-3DLUT/Feature_comparison.py \
+    --exp_id $exp_id \
+    --source_domain $source_domain \
+    --target_domain $target_domain \
+    --feat_csv $feat_csv \
+    --feat_lut_csv $feat_lut_csv \
+    --feat_macenko_csv $feat_macenko_csv \
+    --test_df_path $test_df_path 2>&1 | tee -a "$log_file"
 
 
 
-# current_time=$(date "+%Y-%m-%d_%H-%M")
-# # CHANGE!!!!!-----------------------------------------------------------------------------------------------------------------
-# TASK='Feature comparison'
-# log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/6_${TASK}_${current_time}.log"
+current_time=$(date "+%Y-%m-%d_%H-%M")
+# CHANGE!!!!!-----------------------------------------------------------------------------------------------------------------
+TASK='Feature comparison'
+log_file="/home/ferbue/Image-Adaptive-3DLUT/logs/6_${TASK}_${current_time}.log"
 
-# exp_id="21" # change
-# source_domain="S360" # change
-# target_domain="XR" # change
-# feat_csv="scanb_malmo_source_s360_xr_uni.pkl" # change
-# feat_lut_csv="scanb_malmo_lut_s360_xr_uni.pkl" # change
-# feat_macenko_csv="scanb_malmo_macenko_s360_xr_uni.pkl" # change
-# test_df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp21_bothscanners_v2.csv" # change
-
-
-# log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
+exp_id="21" # change
+source_domain="S360" # change
+target_domain="XR" # change
+feat_csv="scanb_malmo_source_s360_xr_uni.pkl" # change
+feat_lut_csv="scanb_malmo_lut_s360_xr_uni.pkl" # change
+feat_macenko_csv="scanb_malmo_macenko_s360_xr_uni.pkl" # change
+test_df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp21_bothscanners_v2.csv" # change
 
 
-# python /home/ferbue/Image-Adaptive-3DLUT/Feature_comparison.py \
-#     --exp_id $exp_id \
-#     --source_domain $source_domain \
-#     --target_domain $target_domain \
-#     --feat_csv $feat_csv \
-#     --feat_lut_csv $feat_lut_csv \
-#     --feat_macenko_csv $feat_macenko_csv \
-#     --test_df_path $test_df_path 2>&1 | tee -a "$log_file"
+log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
+
+
+python /home/ferbue/Image-Adaptive-3DLUT/Feature_comparison.py \
+    --exp_id $exp_id \
+    --source_domain $source_domain \
+    --target_domain $target_domain \
+    --feat_csv $feat_csv \
+    --feat_lut_csv $feat_lut_csv \
+    --feat_macenko_csv $feat_macenko_csv \
+    --test_df_path $test_df_path 2>&1 | tee -a "$log_file"
 
 
 

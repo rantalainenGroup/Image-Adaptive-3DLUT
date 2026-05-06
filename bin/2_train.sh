@@ -35,14 +35,23 @@ CONFIGS=(
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_19.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
-    "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
+    "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_23.yaml"
 )
+
+# for CONFIG in "${CONFIGS[@]}"; do
+#   SECONDS=0
+#   log "Starting training with $CONFIG"
+#   python -u /home/ferbue/Image-Adaptive-3DLUT/train_unpaired_new.py \
+#   --config "$CONFIG" >> "$log_file"
+#   log "Finished $CONFIG. Time used: ${SECONDS}s"
+# done
+
 
 for CONFIG in "${CONFIGS[@]}"; do
   SECONDS=0
   log "Starting training with $CONFIG"
-  python -u /home/ferbue/Image-Adaptive-3DLUT/train_unpaired_new.py \
+  python -u /home/ferbue/Image-Adaptive-3DLUT/train_unpaired_several.py \
   --config "$CONFIG" >> "$log_file"
   log "Finished $CONFIG. Time used: ${SECONDS}s"
 done
-

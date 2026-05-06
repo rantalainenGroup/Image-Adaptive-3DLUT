@@ -31,7 +31,8 @@ parser.add_argument("--test_csv", type=str, default="", help="optional CSV for t
 parser.add_argument("--export_ext", type=str, default="png", choices=["png","jpg","jpeg"],
                     help="Output format; both saved at highest quality")
 parser.add_argument("--use_global_weight", action="store_true",help="If set, use one global weight (median over loader) instead of image-specific weights.")
-parser.add_argument("--global_type", type=str, default="median",help="using mean/median global weight (median over loader) instead of image-specific weights.")
+parser.add_argument("--global_type", type=str, default="median",help="using mean/median/mode global weight (median over loader) instead of image-specific weights.")
+parser.add_argument("--global_sampling_rate", type=float, default="1.0",help="pctg of tiles used to calcule global weight for wsi")
 cfg, _, eff = load_and_merge_config(parser)
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 cuda = (device.type=="cuda")
@@ -88,6 +89,26 @@ def compute_mean_weight(loader, classifier, device):
     mean = W.mean(dim=0).to(device)
     return mean, W, rows
 
+@torch.no_grad()
+def compute_mode_weight(loader, classifier, device):
+    ws, rows = [], []
+    classifier.eval()
+    for batch in loader:
+        x = batch["A_input"].to(device, non_blocking=True)
+        p = classifier(x).view(x.size(0), -1)[:, :3]
+        p_cpu = p.detach().float().cpu()
+        ws.append(p_cpu)
+        names = batch.get("input_name", [""] * p_cpu.size(0))
+        wsis = batch.get("file_name", [""] * p_cpu.size(0))
+        for i in range(p_cpu.size(0)):
+            rows.append({
+                "file_name": str(wsis[i]),
+                "input_name": str(names[i]),
+                "w0": float(p_cpu[i, 0]), "w1": float(p_cpu[i, 1]), "w2": float(p_cpu[i, 2]),
+            })
+    W = torch.cat(ws, dim=0)
+    mode = W.mode(dim=0).to(device)
+    return mode, W, rows
 
 
 # ----------------
@@ -270,6 +291,7 @@ for i, wsi in enumerate(bar, start=1):
     if cfg.input_color_space == "sRGB":
         # ds = ImageDataset_sRGB_unpaired_CSV_inference(df_sub, mode="test", test_domain="PHILIPS")
         ds = ImageDataset_sRGB_unpaired_CSV_inference_v2(df_sub, mode="test", source_domain=test_domain, target_domain="XR") # should work for all images
+
     
     # Optional: update the bar label/postfix with live info
     bar.set_description(f"WSI {i}/{len(unique_files)}")
@@ -284,11 +306,21 @@ for i, wsi in enumerate(bar, start=1):
     )
 
     if cfg.use_global_weight:
+        if cfg.global_sampling_rate < 1:
+            ds_weight = ImageDataset_sRGB_unpaired_CSV_inference_v2(df_sub.sample(frac=cfg.global_sampling_rate, random_state=42), mode="test", source_domain=test_domain, target_domain="XR") # should work for all images
+            global_w_loader = DataLoader(ds_weight, batch_size=cfg.batch_size, shuffle=False,
+                num_workers=cfg.n_cpu, pin_memory=cuda,
+            )
+        else:
+            global_w_loader = weight_loader
         if "median" in cfg.global_type:
-            global_w, W, rows = compute_median_weight(weight_loader, classifier, device)  # classifer(x) is embedded
+            global_w, W, rows = compute_median_weight(global_w_loader, classifier, device)  # classifer(x) is embedded
             tqdm.write(f"[Eval] Median weight (projected): {global_w.detach().cpu().tolist()}")
         elif "mean" in cfg.global_type:
-            global_w, W, rows = compute_mean_weight(weight_loader, classifier, device)
+            global_w, W, rows = compute_mean_weight(global_w_loader, classifier, device)
+            tqdm.write(f"[Eval] Mean weight (projected): {global_w.detach().cpu().tolist()}")
+        elif "mode" in cfg.global_type:
+            global_w, W, rows = compute_mode_weight(global_w_loader, classifier, device)
             tqdm.write(f"[Eval] Mean weight (projected): {global_w.detach().cpu().tolist()}")
         else:
             raise ValueError(...)

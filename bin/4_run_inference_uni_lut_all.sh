@@ -50,8 +50,8 @@ checkpoint="/home/ferbue/Model_weights/UNI/pytorch_model.bin"
 # df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp21_bothscanners_v2.csv" # change
 # df_feature_name="scanb_malmo_lut_s360_xr_uni" # changes
 
-data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_22"
-df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp22_bothscanners_v2.csv" # change
+data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_23"
+df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp23_allscanners_v2.csv" # change
 # df_feature_name="scanb_malmo_macenko_aperio_xr_uni" # changes
 
 
@@ -69,7 +69,7 @@ tile_name='tile_name'
 log "Executing script at version: $(git log -1 --format="%H" -- /home/ferbue/Image-Adaptive-3DLUT/run_inference_lut.py)"
 
 tile_paths=("png_tile_path" "crude_tile_path" "macenko_tile_path")
-df_feature_names=("scanb_malmo_lut_aperio_xr_uni" "scanb_malmo_source_aperio_xr_uni" "scanb_malmo_macenko_aperio_xr_uni")
+df_feature_names=("scanb_malmo_lut_all_uni" "scanb_malmo_source_all_uni" "scanb_malmo_macenko_all_uni")
 
 for i in "${!tile_paths[@]}"; do
 
