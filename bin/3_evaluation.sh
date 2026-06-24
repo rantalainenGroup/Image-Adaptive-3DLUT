@@ -42,7 +42,10 @@ CONFIGS=(
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
-  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_23.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_23.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_24.yaml"
+  # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_25.yaml"
+  "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_26.yaml"
 
 )
 BATCH_SIZE=256

@@ -50,11 +50,12 @@ checkpoint="/home/ferbue/Model_weights/UNI/pytorch_model.bin"
 # df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp21_bothscanners_v2.csv" # change
 # df_feature_name="scanb_malmo_lut_s360_xr_uni" # changes
 
-data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_23"
-df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp23_allscanners_v2.csv" # change
+# data_out_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_23"
+# df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp23_allscanners_v2.csv" # change
 # df_feature_name="scanb_malmo_macenko_aperio_xr_uni" # changes
 
-
+data_out_path="/mnt/ssd2/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_26"
+df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp26_allscanners_v2.csv" # change
 
 batch_size=256   # change
 tile_size=224

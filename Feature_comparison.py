@@ -34,14 +34,14 @@ args               = parser.parse_args()
 EXP_ID = args.exp_id
 SOURCE_DOMAIN = args.source_domain
 TARGET_DOMAIN = args.target_domain
-base_folder = '/mnt/ssd/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_'+ EXP_ID +'/'
+base_folder = '/mnt/ssd2/ferbue/Image-Adaptive-3DLUT/LUTs/unpaired/exp_'+ EXP_ID +'/'
 feature_folder = base_folder + 'uni/scanb_malmo/h224_w224_zdim1024/'
 feat_csv = feature_folder + (args.feat_csv).replace(feature_folder,'')
 feat_lut_csv = feature_folder + args.feat_lut_csv.replace(feature_folder,'')
 feat_macenko_csv = feature_folder + args.feat_macenko_csv.replace(feature_folder,'')
 test_df_path = args.test_df_path
 
-
+MULTISCAN_VALIDATION = True
 
 
 def scatter_hist(x, y, ax, ax_histx, ax_histy, alpha=0.5, label='', extras=False):
@@ -120,7 +120,7 @@ usecols = ["tile_name", "scanner_model", 'macenko_blur', 'crude_tile_path','png_
 
 
 
-graphics_folder = base_folder + 'feat_comparison/'
+graphics_folder = base_folder + 'feat_comparison_v2/'
 if not os.path.isdir(graphics_folder):
     os.mkdir(graphics_folder)
     
@@ -128,6 +128,23 @@ print('Reading all the stuff')
 
 
 test_df = pd.read_csv(test_df_path, usecols=usecols) #1742609 rows
+
+########################################################################### Reduces tiles to those in the multiscanner experiment
+if MULTISCAN_VALIDATION:
+    validation_df_path="/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/lut_exp23_allscanners_v2.csv" # change
+    val_df = pd.read_csv(validation_df_path, usecols=usecols)
+
+    # len(val_df) #165.135
+    # len(test_df) #1.478.059
+
+    test_df = test_df[test_df['tile_name'].isin(val_df['tile_name'])]
+# len(sample_df) #92640
+
+# len(val_df[val_df['scanner_model'].isin(['APERIO','XR1','XR2'])]) #92640
+
+
+##########################################################################
+
 
 features = pd.read_pickle(feat_csv)
 features2 = pd.merge(features, test_df, on="tile_name") #to get the scanner_model linked to the features
@@ -192,19 +209,29 @@ print('Macenko',wsi_feat_macenko.shape)
 
 # In[ ]:
 
-print('Tile sampling')
-n_samples_per_wsi=1000
-# tile_feat_sampled = features2.groupby("file_name", group_keys=False, sort=False).sample(n=n_samples_per_wsi, random_state=42) #Crashes if not enough tiles available
-tile_feat_sampled = (
-    features2.groupby("file_name", group_keys=False)
-    .apply(lambda x: x.sample(n=min(len(x), n_samples_per_wsi), random_state=42))
-)
-tile_feat_sampled_lut = features_lut_scanner.loc[tile_feat_sampled.index].drop(columns=['tile_name','scanner_model','file_name']).to_numpy()
-tile_feat_sampled_macenko = features_macenko_scanner.loc[tile_feat_sampled.index].drop(columns=['tile_name','scanner_model','file_name']).to_numpy()
+if not MULTISCAN_VALIDATION:
+    print('Tile sampling')
+    n_samples_per_wsi=1000
+    # tile_feat_sampled = features2.groupby("file_name", group_keys=False, sort=False).sample(n=n_samples_per_wsi, random_state=42) #Crashes if not enough tiles available
+    tile_feat_sampled = (
+        features2.groupby("file_name", group_keys=False)
+        .apply(lambda x: x.sample(n=min(len(x), n_samples_per_wsi), random_state=42))
+    )
+    tile_feat_sampled_lut = features_lut_scanner.loc[tile_feat_sampled.index].drop(columns=['tile_name','scanner_model','file_name']).to_numpy()
+    tile_feat_sampled_macenko = features_macenko_scanner.loc[tile_feat_sampled.index].drop(columns=['tile_name','scanner_model','file_name']).to_numpy()
 
-phil_indexes_sampled = (tile_feat_sampled['scanner_model']==SOURCE_DOMAIN).to_list()
-xr_indexes_sampled = [not elem for elem in phil_indexes_sampled]
-tile_feat_sampled = tile_feat_sampled.drop(columns=usecols +['file_name']).to_numpy()
+    phil_indexes_sampled = (tile_feat_sampled['scanner_model']==SOURCE_DOMAIN).to_list()
+    xr_indexes_sampled = [not elem for elem in phil_indexes_sampled]
+    tile_feat_sampled = tile_feat_sampled.drop(columns=usecols +['file_name']).to_numpy()
+
+else:
+    print('Using all validation tiles')
+    tile_feat_sampled = feats
+    tile_feat_sampled_lut = feat_lut
+    tile_feat_sampled_macenko = feat_macenko
+
+    phil_indexes_sampled = phil_indexes
+    xr_indexes_sampled = xr_indexes
 
 
 # RAW feature comparison
@@ -325,34 +352,46 @@ for fg, training_feat_set in enumerate([tile_feat_sampled, tile_feat_sampled_lut
     reducer = umap.UMAP(n_components=10, random_state=42)
     reducer.fit(training_feat_set) #4min with 0.2 
 
-    feats_umap = reducer.transform(tile_feat_sampled) # 12 min
-    feats_umap_lut = reducer.transform(tile_feat_sampled_lut) # 20 min both > 38 min
-    feats_umap_macenko = reducer.transform(tile_feat_sampled_macenko) # 23 min
+    if level == 'Tile': #
+        feats_umap = reducer.transform(tile_feat_sampled) # 12 min
+        feats_umap_lut = reducer.transform(tile_feat_sampled_lut) # 20 min both > 38 min
+        feats_umap_macenko = reducer.transform(tile_feat_sampled_macenko) # 23 min
+
+        source_idxs = phil_indexes_sampled
+        target_idxs = xr_indexes_sampled
+
+    else: #WSI
+        feats_umap = reducer.transform(wsi_feats) 
+        feats_umap_lut = reducer.transform(wsi_feat_lut) 
+        feats_umap_macenko = reducer.transform(wsi_feat_macenko) 
+
+        source_idxs = wsi_philips_idxs
+        target_idxs = wsi_xr_idxs
 
     metrics = np.zeros(6)
 
     i=0
-    value = wasserstein_distance_sum(feats_umap[phil_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap[source_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('crude vs crude: {:.2f}'.format(value)) #9min
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('LUT ' + SOURCE_DOMAIN + ' vs crude XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap_lut[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap_lut[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('LUT ' + SOURCE_DOMAIN+ ' vs LUT XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_macenko[phil_indexes_sampled,:], feats_umap_macenko[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_macenko[source_idxs,:], feats_umap_macenko[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('MACENKO ' + SOURCE_DOMAIN+ ' vs XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap[phil_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap[source_idxs,:])
     metrics[i]= value
     i+=1
     # print(SOURCE_DOMAIN +' LUT vs crude: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[xr_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[target_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('XR LUT vs crude: {:.2f}'.format(value))
@@ -366,22 +405,22 @@ for fg, training_feat_set in enumerate([tile_feat_sampled, tile_feat_sampled_lut
         print('{:.2f}'.format(m), end=',')
 
     i=0
-    scatter_comparison(feats_umap[phil_indexes_sampled,:2], feats_umap[xr_indexes_sampled,:2], 'Crude '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap[source_idxs,:2], feats_umap[target_idxs,:2], 'Crude '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_lut[phil_indexes_sampled,:2], feats_umap[xr_indexes_sampled,:2], 'LUT '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap_lut[source_idxs,:2], feats_umap[target_idxs,:2], 'LUT '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_lut[phil_indexes_sampled,:2], feats_umap_lut[xr_indexes_sampled,:2], 'LUT '+SOURCE_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap_lut[source_idxs,:2], feats_umap_lut[target_idxs,:2], 'LUT '+SOURCE_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_macenko[phil_indexes_sampled,:2], feats_umap_macenko[xr_indexes_sampled,:2], 'Macenko '+SOURCE_DOMAIN, 'Macenko '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap_macenko[source_idxs,:2], feats_umap_macenko[target_idxs,:2], 'Macenko '+SOURCE_DOMAIN, 'Macenko '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap[phil_indexes_sampled,:2], feats_umap_lut[phil_indexes_sampled,:2], 'Crude '+SOURCE_DOMAIN, 'LUT '+SOURCE_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap[source_idxs,:2], feats_umap_lut[source_idxs,:2], 'Crude '+SOURCE_DOMAIN, 'LUT '+SOURCE_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap[xr_indexes_sampled,:2], feats_umap_lut[xr_indexes_sampled,:2], 'Crude '+TARGET_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
+    scatter_comparison(feats_umap[target_idxs,:2], feats_umap_lut[target_idxs,:2], 'Crude '+TARGET_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' UMAP - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
 
     plt.close('all')
@@ -426,34 +465,46 @@ for fg, training_feat_set in enumerate([tile_feat_sampled, tile_feat_sampled_lut
     reducer = PCA(n_components=10)
     reducer.fit(training_feat_set)
 
-    feats_umap = reducer.transform(tile_feat_sampled) # 12 min
-    feats_umap_lut = reducer.transform(tile_feat_sampled_lut) # 20 min both > 38 min
-    feats_umap_macenko = reducer.transform(tile_feat_sampled_macenko) # 23 min
+    if level == 'Tile': #
+        feats_umap = reducer.transform(tile_feat_sampled) # 12 min
+        feats_umap_lut = reducer.transform(tile_feat_sampled_lut) # 20 min both > 38 min
+        feats_umap_macenko = reducer.transform(tile_feat_sampled_macenko) # 23 min
+
+        source_idxs = phil_indexes_sampled
+        target_idxs = xr_indexes_sampled
+
+    else: #WSI
+        feats_umap = reducer.transform(wsi_feats) 
+        feats_umap_lut = reducer.transform(wsi_feat_lut) 
+        feats_umap_macenko = reducer.transform(wsi_feat_macenko) 
+
+        source_idxs = wsi_philips_idxs
+        target_idxs = wsi_xr_idxs
 
     metrics = np.zeros(6)
 
     i=0
-    value = wasserstein_distance_sum(feats_umap[phil_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap[source_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('crude vs crude: {:.2f}'.format(value)) #9min
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('LUT ' + SOURCE_DOMAIN + ' vs crude XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap_lut[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap_lut[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('LUT ' + SOURCE_DOMAIN+ ' vs LUT XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_macenko[phil_indexes_sampled,:], feats_umap_macenko[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_macenko[source_idxs,:], feats_umap_macenko[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('MACENKO ' + SOURCE_DOMAIN+ ' vs XR: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[phil_indexes_sampled,:], feats_umap[phil_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[source_idxs,:], feats_umap[source_idxs,:])
     metrics[i]= value
     i+=1
     # print(SOURCE_DOMAIN +' LUT vs crude: {:.2f}'.format(value))
-    value = wasserstein_distance_sum(feats_umap_lut[xr_indexes_sampled,:], feats_umap[xr_indexes_sampled,:])
+    value = wasserstein_distance_sum(feats_umap_lut[target_idxs,:], feats_umap[target_idxs,:])
     metrics[i]= value
     i+=1
     # print('XR LUT vs crude: {:.2f}'.format(value))
@@ -467,22 +518,22 @@ for fg, training_feat_set in enumerate([tile_feat_sampled, tile_feat_sampled_lut
         print('{:.2f}'.format(m), end=',')
 
     i=0
-    scatter_comparison(feats_umap[phil_indexes_sampled,:2], feats_umap[xr_indexes_sampled,:2], 'Crude '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap[source_idxs,:2], feats_umap[target_idxs,:2], 'Crude '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_lut[phil_indexes_sampled,:2], feats_umap[xr_indexes_sampled,:2], 'LUT '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap_lut[source_idxs,:2], feats_umap[target_idxs,:2], 'LUT '+SOURCE_DOMAIN, 'Crude '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_lut[phil_indexes_sampled,:2], feats_umap_lut[xr_indexes_sampled,:2], 'LUT '+SOURCE_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap_lut[source_idxs,:2], feats_umap_lut[target_idxs,:2], 'LUT '+SOURCE_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap_macenko[phil_indexes_sampled,:2], feats_umap_macenko[xr_indexes_sampled,:2], 'Macenko '+SOURCE_DOMAIN, 'Macenko '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap_macenko[source_idxs,:2], feats_umap_macenko[target_idxs,:2], 'Macenko '+SOURCE_DOMAIN, 'Macenko '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap[phil_indexes_sampled,:2], feats_umap_lut[phil_indexes_sampled,:2], 'Crude '+SOURCE_DOMAIN, 'LUT '+SOURCE_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap[source_idxs,:2], feats_umap_lut[source_idxs,:2], 'Crude '+SOURCE_DOMAIN, 'LUT '+SOURCE_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     i+=1
-    scatter_comparison(feats_umap[xr_indexes_sampled,:2], feats_umap_lut[xr_indexes_sampled,:2], 'Crude '+TARGET_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
+    scatter_comparison(feats_umap[target_idxs,:2], feats_umap_lut[target_idxs,:2], 'Crude '+TARGET_DOMAIN, 'LUT '+TARGET_DOMAIN, UMAP_domain_list[f] +' PCA - ' +level+ ' level')
     plt.savefig(graphics_folder+row_identifier+'_'+labels[i]+'.png')
     
     plt.close('all')

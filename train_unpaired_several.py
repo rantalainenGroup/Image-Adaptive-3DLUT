@@ -49,6 +49,7 @@ parser.add_argument("--train_csv", type=str, default="", help="CSV for unpaired 
 parser.add_argument("--test_csv", type=str, default="", help="Optional paired test CSV for PSNR")
 parser.add_argument("--val_csv", type=str, default="", help="CSV with val/test rows for PHILIPS & XR (for FID/KID)")
 parser.add_argument("--data_augmentation", action="store_true", help="use data augmentation in data loader")
+parser.add_argument("--pixel_shuffling", default=False, help="use pixel shuffling in data loader")
 parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from, 0 starts from scratch, >0 starts from saved checkpoints")
 parser.add_argument("--n_epochs", type=int, default=300, help="total number of epochs of training")
 parser.add_argument("--dataset_name", type=str, default="scanb_malmo", help="name of the dataset")
@@ -133,6 +134,7 @@ cfg, run_dir, eff = load_and_merge_config(parser)
 save_configs(run_dir, eff, getattr(cfg, "config", None))
 print(f"[Run dir] {run_dir}")
 print(cfg)
+
 
 cuda = True if torch.cuda.is_available() else False
 device = torch.device("cuda" if cuda else "cpu")
@@ -277,7 +279,7 @@ if getattr(cfg, "val_csv", None):
 """
 
 if cfg.input_color_space == 'sRGB':
-    ds_train = ImageDataset_sRGB_unpaired_CSV_v2(cfg.train_csv, mode="train", data_augmentation=cfg.data_augmentation, source_domain=cfg.test_domain, target_domain='XR')
+    ds_train = ImageDataset_sRGB_unpaired_CSV_several(cfg.train_csv, mode="train", data_augmentation=cfg.data_augmentation, pixel_shuffling=cfg.pixel_shuffling, source_domain_list=cfg.test_domain, target_domain='XR')
 
     if getattr(cfg, "steps_per_epoch", 0) > 0:
         print('=========== Using partial epoch training ===========')
@@ -303,12 +305,13 @@ else:
 val_A_loader = val_B_loader = None
 if getattr(cfg, "val_csv", ""):
     val_A_loader = DataLoader(
-        ImageDataset_sRGB_unpaired_CSV_v2(cfg.val_csv, mode="test", source_domain=cfg.test_domain, target_domain='XR'),
+        ImageDataset_sRGB_unpaired_CSV_several(cfg.val_csv, mode="test", source_domain_list=cfg.test_domain, target_domain='XR'),
         batch_size=cfg.batch_size, shuffle=False,
         num_workers=max(1, cfg.n_cpu//2), pin_memory=(device.type=="cuda")
     )
+    # Hardcoded to use all validation XR available. Val_csv above has a subset of every scanner
     val_B_loader = DataLoader(
-        ImageDataset_sRGB_unpaired_CSV_v2(cfg.val_csv, mode="test", source_domain="XR", target_domain='XR'),
+        ImageDataset_sRGB_unpaired_CSV_v2('/mnt/ssd/ferbue/Image-Adaptive-3DLUT/dataframes/scanb_malmo_all_sources_train.csv', mode="test", source_domain="XR", target_domain='XR'),
         batch_size=cfg.batch_size, shuffle=False,
         num_workers=max(1, cfg.n_cpu//2), pin_memory=(device.type=="cuda")
     )

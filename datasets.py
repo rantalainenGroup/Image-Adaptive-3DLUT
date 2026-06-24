@@ -483,7 +483,7 @@ class ImageDataset_sRGB_unpaired_CSV_several(Dataset):
     CSV must have: path (str), scanner_model_new in {"PHILIPS","XR"}, split in {"train","test"}.
     """
     def __init__(self, csv_path, mode="train", source_domain_list=["PHILIPS"], target_domain='XR',
-                 col_name='crude_tile_path', data_augmentation=False):
+                 col_name='crude_tile_path', data_augmentation=False, pixel_shuffling=False):
         assert mode in {"train","test"}
         assert all(s in {"PHILIPS", "XR", "S360", "APERIO"} for s in source_domain_list)
         assert target_domain in {"PHILIPS","XR",'S360',"APERIO"}
@@ -491,6 +491,7 @@ class ImageDataset_sRGB_unpaired_CSV_several(Dataset):
         self.source_domain_list = source_domain_list
         self.target_domain = target_domain
         self.data_augmentation = data_augmentation
+        self.pixel_shuffling = pixel_shuffling
         if platform.system() == 'Linux':
             self._load = load_acc
         else:
@@ -566,6 +567,32 @@ class ImageDataset_sRGB_unpaired_CSV_several(Dataset):
                 a = np.random.uniform(0.6,1.4); img_input = TF.adjust_brightness(img_input,a)
                 a = np.random.uniform(0.8,1.2); img_input = TF.adjust_saturation(img_input,a)
             # only get one domain 
+
+            if self.pixel_shuffling and self.mode=="train":
+
+                img_input = TF.to_tensor(img_input).float()  # [C,H,W]
+                img_exptC = TF.to_tensor(img_exptC).float()
+                img2 = TF.to_tensor(img2).float()
+                c, h, w = img_input.shape
+                # Apply the same random pixel shuffle to both img_input and img_exptC
+                # h, w = img_input.size
+                # c= 3 #RGB
+                # Create permutation over pixels only
+                shuffle_idx = torch.randperm(h * w)
+                # Reshape to [num_pixels, channels]
+                # img_input = img_input.view(-1, c)[shuffle_idx].view(h, w, c)
+                # img_exptC = img_exptC.view(-1, c)[shuffle_idx].view(h, w, c)
+
+                img_input = img_input.permute(1, 2, 0).reshape(-1, c)[shuffle_idx].reshape(h, w, c).permute(2, 0, 1)      # back to [C,H,W]
+                img_exptC = img_exptC.permute(1, 2, 0).reshape(-1, c)[shuffle_idx].reshape(h, w, c).permute(2, 0, 1) 
+
+                # For img2 (unpaired), we can apply a different random shuffle
+                shuffle_idx2 = torch.randperm(h * w)
+                # img2 = img2.view(-1, c)[shuffle_idx2].view(h, w, c)
+                img2 = img2.permute(1, 2, 0).reshape(-1, c)[shuffle_idx].reshape(h, w, c).permute(2, 0, 1) 
+
+
+
         elif self.mode == "test":
             pool = self.A_test # if self.test_domain=="PHILIPS" else self.B_test
             img_input = self._load(pool[index % len(pool)])
@@ -573,13 +600,23 @@ class ImageDataset_sRGB_unpaired_CSV_several(Dataset):
             img2 = img_exptC
         
         # to tensor [0,1]
-        return {
-            "A_input": TF.to_tensor(img_input),
-            "A_exptC": TF.to_tensor(img_exptC),
-            "B_exptC": TF.to_tensor(img2),
-            "input_name": os.path.basename(self.A_train[index % len(self.A_train)]) if self.mode=="train"
-                          else os.path.basename((self.A_test)[index % len(pool)]) # within (self.A_test if self.test_domain=='PHILIPS' else self.B_test)
-        }
+        if self.pixel_shuffling:
+            return {
+                "A_input": img_input,
+                "A_exptC": img_exptC,
+                "B_exptC": img2,
+                "input_name": os.path.basename(self.A_train[index % len(self.A_train)]) if self.mode=="train"
+                            else os.path.basename((self.A_test)[index % len(pool)]) # within (self.A_test if self.test_domain=='PHILIPS' else self.B_test)
+            }
+
+        else:
+            return {
+                "A_input": TF.to_tensor(img_input),
+                "A_exptC": TF.to_tensor(img_exptC),
+                "B_exptC": TF.to_tensor(img2),
+                "input_name": os.path.basename(self.A_train[index % len(self.A_train)]) if self.mode=="train"
+                            else os.path.basename((self.A_test)[index % len(pool)]) # within (self.A_test if self.test_domain=='PHILIPS' else self.B_test)
+            }
 
    
 class ImageDataset_sRGB_unpaired_CSV_inference(Dataset):

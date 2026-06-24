@@ -107,7 +107,7 @@ def compute_mode_weight(loader, classifier, device):
                 "w0": float(p_cpu[i, 0]), "w1": float(p_cpu[i, 1]), "w2": float(p_cpu[i, 2]),
             })
     W = torch.cat(ws, dim=0)
-    mode = W.mode(dim=0).to(device)
+    mode = W.mode(dim=0).values.to(device)
     return mode, W, rows
 
 
@@ -252,7 +252,7 @@ run_root = Path(cfg.output_dir) / cfg.run_name
 ext_tag = str(cfg.export_ext).lower().lstrip('.')  # e.g., "png" or "jpg"
 tag = f"best_fid_{ext_tag}" if "best_fid" in str(luts_path) else f"epoch_{cfg.epoch}_{ext_tag}"
 out_dir = run_root / "evaluation" / tag
-out_dir.mkdir(parents=True, exist_ok=True)
+out_dir.mkdir(parents=True, exist_ok=False)
 print(f"[Eval] Writing to: {out_dir}")
 
 # study-level summary file once per run

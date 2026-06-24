@@ -36,7 +36,11 @@ CONFIGS=(
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_20.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_21.yaml"
   # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_22.yaml"
-    "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_23.yaml"
+    # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_23.yaml"
+    # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_26.yaml"
+    # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_27.yaml"
+    # "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_28.yaml"
+    "/home/ferbue/Image-Adaptive-3DLUT/configs/exp_29.yaml"
 )
 
 # for CONFIG in "${CONFIGS[@]}"; do
